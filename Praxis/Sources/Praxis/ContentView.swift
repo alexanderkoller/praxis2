@@ -1365,12 +1365,16 @@ private struct InputField: View {
     var placeholder = ""
     var compact = false
 
+    @State private var draft: String = ""
+    @State private var didSave = false
+    @FocusState private var isFocused: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: title == nil ? 0 : 4) {
             if let title {
                 SectionLabel(title)
             }
-            TextField(placeholder, text: $text)
+            TextField(placeholder, text: $draft)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .padding(.horizontal, 10)
@@ -1378,8 +1382,23 @@ private struct InputField: View {
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(PraxisPalette.field)
-                        .stroke(PraxisPalette.border, lineWidth: 1)
+                        .stroke(didSave ? Color.green : PraxisPalette.border, lineWidth: didSave ? 2 : 1)
                 )
+                .focused($isFocused)
+                .onSubmit { commit() }
+                .onChange(of: isFocused) { _, focused in if !focused { commit() } }
+                .onChange(of: text) { _, newValue in if !isFocused { draft = newValue } }
+                .onAppear { draft = text }
+        }
+    }
+
+    private func commit() {
+        guard draft != text else { return }
+        text = draft
+        didSave = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            didSave = false
         }
     }
 }
@@ -1467,13 +1486,17 @@ private struct MockTextEditor: View {
     let minHeight: CGFloat
     var placeholder = ""
 
+    @State private var draft: String = ""
+    @State private var didSave = false
+    @FocusState private var isFocused: Bool
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 8)
                 .fill(PraxisPalette.field)
-                .stroke(PraxisPalette.border, lineWidth: 1)
+                .stroke(didSave ? Color.green : PraxisPalette.border, lineWidth: didSave ? 2 : 1)
 
-            if text.isEmpty && !placeholder.isEmpty {
+            if draft.isEmpty && !placeholder.isEmpty {
                 Text(placeholder)
                     .font(.system(size: 13))
                     .foregroundStyle(PraxisPalette.label)
@@ -1481,15 +1504,29 @@ private struct MockTextEditor: View {
                     .padding(.top, 10)
             }
 
-            TextEditor(text: $text)
+            TextEditor(text: $draft)
                 .scrollContentBackground(.hidden)
                 .font(.system(size: 13))
                 .foregroundStyle(PraxisPalette.text)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
                 .frame(minHeight: minHeight)
+                .focused($isFocused)
+                .onChange(of: isFocused) { _, focused in if !focused { commit() } }
+                .onChange(of: text) { _, newValue in if !isFocused { draft = newValue } }
+                .onAppear { draft = text }
         }
         .frame(minHeight: minHeight)
+    }
+
+    private func commit() {
+        guard draft != text else { return }
+        text = draft
+        didSave = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            didSave = false
+        }
     }
 }
 

@@ -55,6 +55,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 window.makeKeyAndOrderFront(nil)
             }
         }
+        // "Login" equivalent: DB key was successfully retrieved from Keychain, user is authenticated
+        AuditLog.appendSystemEvent(
+            eventType: "app.launched",
+            meta: ["appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"]
+        )
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        AuditLog.appendSystemEvent(eventType: "app.terminated")
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -53,7 +53,6 @@ final class AppStore {
     var selectedSessionID: UUID? = nil
 
     @ObservationIgnored private var questionnaireServer: QuestionnaireServer? = nil
-    @ObservationIgnored private var _savePatientTask: Task<Void, Never>? = nil
     @ObservationIgnored private var _saveSessionTask: Task<Void, Never>? = nil
 
     // MARK: - Init
@@ -190,16 +189,11 @@ final class AppStore {
         scheduleSessionSave()
     }
 
-    // MARK: - Debounced scalar saves
+    // MARK: - Scalar saves
 
     private func schedulePatientSave() {
-        _savePatientTask?.cancel()
         let patient = selectedPatient
-        _savePatientTask = Task {
-            try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled else { return }
-            try? PatientRepository.updatePatientScalars(patient)
-        }
+        Task { try? PatientRepository.updatePatientScalars(patient) }
     }
 
     private func scheduleSessionSave() {

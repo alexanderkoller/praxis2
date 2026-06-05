@@ -183,7 +183,36 @@ final class DatabaseManager: @unchecked Sendable {
             }
         }
 
-        // v2 will add the append-only events table for audit log + DB reconstruction
+        migrator.registerMigration("v2") { db in
+            try db.create(table: "audit_log") { t in
+                t.primaryKey("id", .text)
+                t.column("occurredAt", .text).notNull()
+                t.column("eventType", .text).notNull()
+                t.column("entityTable", .text)
+                t.column("entityID", .text)
+                t.column("patientID", .text)   // no FK — must outlive patient records
+                t.column("payloadJSON", .text).notNull().defaults(to: "{}")
+            }
+            try db.execute(sql: """
+                CREATE TRIGGER prevent_audit_log_update
+                BEFORE UPDATE ON audit_log
+                BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER prevent_audit_log_delete
+                BEFORE DELETE ON audit_log
+                BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END
+                """)
+            try db.execute(
+                sql: "INSERT INTO audit_log (id, occurredAt, eventType, payloadJSON) VALUES (?, ?, ?, ?)",
+                arguments: [
+                    UUID().uuidString,
+                    ISO8601DateFormatter().string(from: Date()),
+                    "db.migrated",
+                    "{\"toVersion\":\"v2\"}"
+                ]
+            )
+        }
 
         try migrator.migrate(db)
     }
