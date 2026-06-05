@@ -23,5 +23,12 @@ let package = Package(
                 .copy("Resources")
             ]
         ),
+        .testTarget(
+            name: "PraxisTests",
+            dependencies: [
+                "Praxis",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ]
+        ),
     ]
 )

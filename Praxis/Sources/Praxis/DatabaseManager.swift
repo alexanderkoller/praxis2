@@ -26,7 +26,7 @@ final class DatabaseManager: @unchecked Sendable {
         return dir.appendingPathComponent("praxis.db")
     }
 
-    private static func runMigrations(_ db: DatabaseQueue) throws {
+    static func runMigrations(_ db: DatabaseQueue) throws {
         var migrator = DatabaseMigrator()
 
         migrator.registerMigration("v1") { db in
