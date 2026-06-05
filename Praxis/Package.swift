@@ -8,9 +8,18 @@ let package = Package(
     platforms: [
         .macOS(.v14)
     ],
+    dependencies: [
+        .package(url: "https://github.com/httpswift/swifter.git", .upToNextMajor(from: "1.5.0"))
+    ],
     targets: [
         .executableTarget(
-            name: "Praxis"
+            name: "Praxis",
+            dependencies: [
+                .product(name: "Swifter", package: "swifter")
+            ],
+            resources: [
+                .copy("Resources")
+            ]
         ),
     ]
 )

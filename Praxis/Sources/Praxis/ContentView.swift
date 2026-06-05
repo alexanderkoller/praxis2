@@ -356,11 +356,18 @@ private struct PatientTabBar: View {
                         store.patientTab = tab
                     } label: {
                         VStack(spacing: 4) {
-                            Text(tab.rawValue)
-                                .font(.system(size: 12, weight: store.patientTab == tab ? .semibold : .regular))
-                                .foregroundStyle(store.patientTab == tab ? PraxisPalette.primary : PraxisPalette.subtleText)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
+                            ZStack {
+                                Text(tab.rawValue)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                                    .hidden()
+                                Text(tab.rawValue)
+                                    .font(.system(size: 12, weight: store.patientTab == tab ? .semibold : .regular))
+                                    .foregroundStyle(store.patientTab == tab ? PraxisPalette.primary : PraxisPalette.subtleText)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
                             Rectangle()
                                 .fill(store.patientTab == tab ? PraxisPalette.primary : .clear)
                                 .frame(height: 2)
@@ -882,15 +889,15 @@ private struct FrageboegenTab: View {
             }
 
             HStack(spacing: 10) {
-                MenuField(title: nil, selection: Binding(
-                    get: { store.selectedQuestionnaireName },
-                    set: { store.selectedQuestionnaireName = $0 }
-                ), options: MockData.bundledQuestionnaires, compact: true)
-                .frame(maxWidth: 280)
+                QuestionnaireMenuField(selection: Binding(
+                    get: { store.selectedQuestionnaireID },
+                    set: { store.selectedQuestionnaireID = $0 }
+                ), questionnaires: store.installedQuestionnaires)
+                .frame(maxWidth: 320)
                 PrimaryButton("QR-Code senden") {
                     store.startQRSession()
                 }
-                Text("Mock: erzeugt einen kurzlebigen lokalen Link ohne Netzwerkzugriff.")
+                Text("Startet einen temporären lokalen Link und speichert die Antwort beim Absenden.")
                     .font(.system(size: 11))
                     .foregroundStyle(Color(hex: "#aaaaaa"))
                 Spacer()
@@ -1288,6 +1295,45 @@ private struct MenuField: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+private struct QuestionnaireMenuField: View {
+    @Binding var selection: String
+    let questionnaires: [FHIRQuestionnaire]
+
+    private var selectedTitle: String {
+        questionnaires.first(where: { $0.id == selection })?.displayTitle ?? questionnaires.first?.displayTitle ?? "Keine Fragebögen"
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(questionnaires) { questionnaire in
+                Button(questionnaire.displayTitle) {
+                    selection = questionnaire.id
+                }
+            }
+        } label: {
+            HStack {
+                Text(selectedTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(PraxisPalette.text)
+                    .lineLimit(1)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color(hex: "#aaaaaa"))
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(PraxisPalette.field)
+                    .stroke(PraxisPalette.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(questionnaires.isEmpty)
     }
 }
 
@@ -2155,14 +2201,24 @@ private struct QRSessionSheet: View {
                 .multilineTextAlignment(.center)
 
             ZStack {
-                RoundedRectangle(cornerRadius: 10).fill(Color(hex: "#f0f0f5"))
-                MockQRGrid().padding(18)
+                RoundedRectangle(cornerRadius: 12).fill(Color.white)
+                if session.url.hasPrefix("http") {
+                    QRCodeView(url: session.url)
+                        .padding(16)
+                } else {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(PraxisPalette.warning)
+                }
             }
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(PraxisPalette.border, lineWidth: 1))
             .frame(width: 200, height: 200)
 
             Text(session.url)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(PraxisPalette.subtleText)
+                .lineLimit(4)
+                .multilineTextAlignment(.center)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(RoundedRectangle(cornerRadius: 6).fill(PraxisPalette.field))
@@ -2178,20 +2234,16 @@ private struct QRSessionSheet: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 54))
                     .foregroundStyle(PraxisPalette.success)
-                Text("Mock-Antwort eingegangen")
+                Text("Antwort eingegangen")
                     .font(.system(size: 14, weight: .semibold))
             }
 
             HStack(spacing: 8) {
-                GhostButton("Abbrechen") {
+                GhostButton(session.phase == .waiting ? "Abbrechen" : "Schließen") {
                     store.closeQRSession()
                     dismiss()
                 }
-                if session.phase == .waiting {
-                    PrimaryButton("Mock Antwort empfangen") {
-                        store.completeQRSession()
-                    }
-                } else {
+                if session.phase == .completed {
                     PrimaryButton("Fertig") {
                         store.closeQRSession()
                         dismiss()
@@ -2201,31 +2253,6 @@ private struct QRSessionSheet: View {
         }
         .padding(28)
         .frame(width: 360)
-    }
-}
-
-private struct MockQRGrid: View {
-    var body: some View {
-        let cells: [Bool] = [
-            true,false,true,true,false,true,true,false,true,true,
-            false,true,false,true,false,false,true,false,false,true,
-            true,true,false,false,true,true,false,true,true,false,
-            true,false,true,false,true,false,true,false,true,false,
-            false,true,true,true,false,true,false,true,false,true,
-            true,false,false,true,true,false,true,true,false,false,
-            true,true,true,false,false,true,false,false,true,true,
-            false,true,false,true,true,false,true,false,true,false,
-            true,false,true,true,false,true,true,false,false,true,
-            true,true,false,false,true,false,true,true,false,true
-        ]
-
-        return LazyVGrid(columns: Array(repeating: GridItem(.fixed(14), spacing: 2), count: 10), spacing: 2) {
-            ForEach(Array(cells.enumerated()), id: \.offset) { entry in
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(entry.element ? PraxisPalette.text : .clear)
-                    .frame(width: 14, height: 14)
-            }
-        }
     }
 }
 

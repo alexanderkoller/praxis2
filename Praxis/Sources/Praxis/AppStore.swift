@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 @Observable
+@MainActor
 final class AppStore {
     struct QRSession: Identifiable {
         enum Phase {
@@ -10,7 +11,9 @@ final class AppStore {
         }
 
         let id = UUID()
+        var token: String
         var questionnaireName: String
+        var questionnaireID: String
         var url: String
         var phase: Phase = .waiting
     }
@@ -30,10 +33,12 @@ final class AppStore {
     var patientSearchText = ""
     var documentSearchText = ""
     var selectedDocumentCategory: DocumentCategory? = nil
-    var selectedQuestionnaireName = MockData.bundledQuestionnaires.first ?? "PHQ-9"
+    var installedQuestionnaires: [FHIRQuestionnaire] = []
+    var selectedQuestionnaireID: String = ""
     var draftAppointment = AppointmentDraft()
     var selectedQuestionnaireResult: QuestionnaireResultRecord? = nil
     var qrSession: QRSession? = nil
+    private var questionnaireServer: QuestionnaireServer? = nil
     var patients: [Patient] = MockData.patients
     var selectedPatientID: UUID
     var selectedAppointmentID: UUID?
@@ -44,6 +49,7 @@ final class AppStore {
         self.selectedPatientID = patient.id
         self.selectedAppointmentID = patient.appointments.first?.id
         self.selectedSessionID = patient.sessions.first?.id
+        loadQuestionnaires()
     }
 
     var selectedPatientIndex: Int {
@@ -116,6 +122,18 @@ final class AppStore {
         return groups.keys.sorted(by: >).map { year in
             (year, groups[year] ?? [])
         }
+    }
+
+    var selectedQuestionnaire: FHIRQuestionnaire? {
+        installedQuestionnaires.first { $0.id == selectedQuestionnaireID } ?? installedQuestionnaires.first
+    }
+
+    var questionnaireMenuOptions: [String] {
+        installedQuestionnaires.map(\.id)
+    }
+
+    func questionnaireTitle(for id: String) -> String {
+        installedQuestionnaires.first(where: { $0.id == id })?.displayTitle ?? id
     }
 
     func selectPatient(_ id: UUID) {
@@ -274,54 +292,82 @@ final class AppStore {
     }
 
     func startQRSession() {
-        let token = UUID().uuidString.prefix(8)
-        qrSession = QRSession(questionnaireName: selectedQuestionnaireName, url: "http://192.168.0.12:8080/s/\(token)")
+        guard let questionnaire = selectedQuestionnaire else { return }
+
+        questionnaireServer?.stop()
+        let server = QuestionnaireServer()
+        let token = randomToken()
+        let url = "http://\(localNetworkIP()):8080/s/\(token)"
+        let patientIdentity = QuestionnairePatientIdentity(
+            name: selectedPatient.fullName,
+            birthDate: selectedPatient.birthDate
+        )
+
+        do {
+            try server.start(token: token, questionnaire: questionnaire, patient: patientIdentity) { [weak self] answers in
+                self?.saveQuestionnaireResponse(questionnaire: questionnaire, answers: answers)
+            }
+            questionnaireServer = server
+            qrSession = QRSession(
+                token: token,
+                questionnaireName: questionnaire.displayTitle,
+                questionnaireID: questionnaire.id,
+                url: url
+            )
+        } catch {
+            qrSession = QRSession(
+                token: token,
+                questionnaireName: questionnaire.displayTitle,
+                questionnaireID: questionnaire.id,
+                url: "Server konnte nicht gestartet werden: \(error.localizedDescription)",
+                phase: .completed
+            )
+        }
     }
 
-    func completeQRSession() {
-        guard var current = qrSession else { return }
-        current.phase = .completed
-        qrSession = current
-
-        let score: Int
-        let tier: QuestionnaireTier
-        switch current.questionnaireName {
-        case "PHQ-9":
-            score = 9
-            tier = .leicht
-        case "GAD-7":
-            score = 6
-            tier = .leicht
-        case "WHO-5":
-            score = 16
-            tier = .minimal
-        case "AUDIT":
-            score = 5
-            tier = .leicht
-        default:
-            score = 8
-            tier = .leicht
+    func saveQuestionnaireResponse(
+        questionnaire: FHIRQuestionnaire,
+        answers: [String: FHIRQuestionnaire.FHIRAnswerOption]
+    ) {
+        let score = Int(answers.values.compactMap(\.ordinalValue).reduce(0, +))
+        let scoringTier = questionnaire.scoringTiers?.first { $0.contains(score) }
+        let tier = questionnaireTier(for: scoringTier, score: score)
+        let date = currentDateLabel()
+        let answerRows = questionnaire.scorableItems.compactMap { item -> QuestionnaireAnswer? in
+            guard let answer = answers[item.linkId] else { return nil }
+            return QuestionnaireAnswer(
+                question: item.text ?? item.linkId,
+                answer: answer.valueCoding?.display ?? "Antwort",
+                score: Int(answer.ordinalValue ?? 0)
+            )
         }
-
-        let maxScore = current.questionnaireName == "GAD-7" ? 21 : (current.questionnaireName == "WHO-5" ? 25 : 27)
         let result = QuestionnaireResultRecord(
-            questionnaireName: current.questionnaireName,
-            description: questionnaireDescription(for: current.questionnaireName),
-            date: "05.06.2026",
+            questionnaireName: questionnaire.displayTitle,
+            description: questionnaire.displayDescription,
+            date: date,
             sessionLabel: "Sitzung #\(selectedPatient.sessionCount)",
             score: score,
-            maxScore: maxScore,
+            maxScore: max(questionnaire.maxScore, score),
             tier: tier,
-            answers: MockData.defaultQuestionnaireAnswers[current.questionnaireName] ?? []
+            answers: answerRows
         )
 
         updateSelectedPatient {
             $0.questionnaireResults.insert(result, at: 0)
             $0.timeline.insert(TimelineEvent(date: result.date, title: "\(result.questionnaireName) eingegangen", subtitle: "Score \(result.score) · \(result.tier.rawValue)", kind: .questionnaire), at: 0)
         }
+
+        if var current = qrSession {
+            current.phase = .completed
+            qrSession = current
+        }
+        questionnaireServer?.stop()
+        questionnaireServer = nil
     }
 
     func closeQRSession() {
+        questionnaireServer?.stop()
+        questionnaireServer = nil
         qrSession = nil
     }
 
@@ -353,6 +399,67 @@ final class AppStore {
         case "AUDIT": return "Alkoholkonsum"
         case "PHQ-15": return "Somatische Beschwerden"
         default: return "Fragebogen"
+        }
+    }
+
+    private func loadQuestionnaires() {
+        let urls = Bundle.module.urls(forResourcesWithExtension: "json", subdirectory: "Resources") ?? []
+        let questionnaireURLs = urls.filter { !$0.lastPathComponent.hasSuffix("-scoring.json") }
+
+        installedQuestionnaires = questionnaireURLs.compactMap { url in
+            guard let data = try? Data(contentsOf: url),
+                  var questionnaire = try? JSONDecoder().decode(FHIRQuestionnaire.self, from: data) else {
+                return nil
+            }
+
+            let scoringURL = url.deletingLastPathComponent()
+                .appendingPathComponent("\(questionnaire.id)-scoring.json")
+            if let scoringData = try? Data(contentsOf: scoringURL),
+               let scoringTiers = try? JSONDecoder().decode([ScoringTier].self, from: scoringData) {
+                questionnaire.scoringTiers = scoringTiers
+            }
+
+            return questionnaire
+        }
+        .sorted { $0.displayTitle < $1.displayTitle }
+
+        selectedQuestionnaireID = installedQuestionnaires.first?.id ?? ""
+    }
+
+    private func randomToken() -> String {
+        let characters = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        return String((0..<16).compactMap { _ in characters.randomElement() })
+    }
+
+    private func currentDateLabel() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "dd.MM.yyyy"
+        return formatter.string(from: Date())
+    }
+
+    private func questionnaireTier(for scoringTier: ScoringTier?, score: Int) -> QuestionnaireTier {
+        if let scoringTier {
+            switch scoringTier.color {
+            case "green":
+                return .minimal
+            case "yellow":
+                return .leicht
+            case "orange":
+                return .mittel
+            case "red":
+                return score >= 20 ? .schwer : .mittelPlus
+            default:
+                break
+            }
+        }
+
+        switch score {
+        case 0...4: return .minimal
+        case 5...9: return .leicht
+        case 10...14: return .mittel
+        case 15...19: return .mittelPlus
+        default: return .schwer
         }
     }
 }

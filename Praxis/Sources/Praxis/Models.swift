@@ -1,6 +1,84 @@
 import Foundation
 import SwiftUI
 
+struct ScoringTier: Codable, Sendable {
+    let minScore: Int
+    let maxScore: Int
+    let label: String
+    let color: String
+
+    func contains(_ score: Int) -> Bool {
+        score >= minScore && score <= maxScore
+    }
+}
+
+struct FHIRQuestionnaire: Codable, Identifiable, Sendable {
+    let id: String
+    let title: String?
+    let description: String?
+    let item: [FHIRItem]
+    var scoringTiers: [ScoringTier]? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, description, item
+    }
+
+    struct FHIRItem: Codable, Sendable {
+        let linkId: String
+        let text: String?
+        let type: String
+        let prefix: String?
+        let readOnly: Bool?
+        let answerOption: [FHIRAnswerOption]?
+    }
+
+    struct FHIRAnswerOption: Codable, Sendable {
+        let valueCoding: FHIRCoding?
+        let `extension`: [FHIRExtension]?
+
+        var ordinalValue: Double? {
+            `extension`?.first(where: {
+                $0.url == "http://hl7.org/fhir/StructureDefinition/ordinalValue"
+            })?.valueDecimal
+        }
+    }
+
+    struct FHIRCoding: Codable, Sendable {
+        let code: String?
+        let display: String?
+    }
+
+    struct FHIRExtension: Codable, Sendable {
+        let url: String
+        let valueDecimal: Double?
+        let valueBoolean: Bool?
+    }
+
+    var displayTitle: String {
+        if let title, !title.isEmpty {
+            return title
+                .replacingOccurrences(of: "MII QST PRO ", with: "")
+                .replacingOccurrences(of: "PHQ-9", with: "PHQ-9")
+        }
+        return id
+    }
+
+    var displayDescription: String {
+        description ?? "Fragebogen"
+    }
+
+    var scorableItems: [FHIRItem] {
+        item.filter { $0.type == "choice" && $0.readOnly != true && $0.answerOption?.isEmpty == false }
+    }
+
+    var maxScore: Int {
+        scorableItems.reduce(0) { total, item in
+            let maxItemScore = item.answerOption?.compactMap(\.ordinalValue).max() ?? 0
+            return total + Int(maxItemScore)
+        }
+    }
+}
+
 enum SidebarItem: String, CaseIterable, Identifiable {
     case heute = "Heute"
     case patienten = "Patienten"
@@ -725,6 +803,7 @@ enum PraxisPalette {
     static let field = Color(hex: "#f7f8fa")
     static let border = Color(hex: "#e4e4ea")
     static let success = Color(hex: "#34c759")
+    static let warning = Color(hex: "#ff9f0a")
     static let danger = Color(hex: "#e03030")
     static let chrome = Color(hex: "#e4e4e9")
     static let windowBackground = Color(hex: "#1c1c1e")
