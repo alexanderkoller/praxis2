@@ -1,15 +1,18 @@
 import Foundation
 import Observation
 
+private func praxisTodayDateString() -> String {
+    let fmt = DateFormatter()
+    fmt.locale = Locale(identifier: "de_DE")
+    fmt.dateFormat = "dd.MM.yyyy"
+    return fmt.string(from: Date())
+}
+
 @Observable
 @MainActor
 final class AppStore {
     struct QRSession: Identifiable {
-        enum Phase {
-            case waiting
-            case completed
-        }
-
+        enum Phase { case waiting, completed }
         let id = UUID()
         var token: String
         var questionnaireName: String
@@ -19,13 +22,15 @@ final class AppStore {
     }
 
     struct AppointmentDraft {
-        var date = "26.06.2025"
+        var date = praxisTodayDateString()
         var time = "10:00"
         var duration = "50"
         var type = MockData.appointmentTypes.first ?? "Therapiesitzung"
         var recurrence = MockData.recurrenceOptions.first ?? "Einmalig"
         var note = ""
     }
+
+    // MARK: - Observable state
 
     var sidebarSelection: SidebarItem = .heute
     var patientTab: PatientTab = .uebersicht
@@ -42,20 +47,32 @@ final class AppStore {
     var draftAppointment = AppointmentDraft()
     var selectedQuestionnaireResult: QuestionnaireResultRecord? = nil
     var qrSession: QRSession? = nil
-    private var questionnaireServer: QuestionnaireServer? = nil
-    var patients: [Patient] = MockData.patients
-    var selectedPatientID: UUID
-    var selectedAppointmentID: UUID?
-    var selectedSessionID: UUID?
+    var patients: [Patient] = []
+    var selectedPatientID: UUID = UUID()
+    var selectedAppointmentID: UUID? = nil
+    var selectedSessionID: UUID? = nil
+
+    @ObservationIgnored private var questionnaireServer: QuestionnaireServer? = nil
+    @ObservationIgnored private var _savePatientTask: Task<Void, Never>? = nil
+    @ObservationIgnored private var _saveSessionTask: Task<Void, Never>? = nil
+
+    // MARK: - Init
 
     init() {
-        let patient = MockData.patients.first!
-        self.selectedPatientID = patient.id
-        self.selectedAppointmentID = patient.appointments.first?.id
-        self.selectedSessionID = patient.sessions.first?.id
+        patients = (try? PatientRepository.fetchAll()) ?? []
+        if patients.isEmpty {
+            try? PatientRepository.seedMockData(MockData.patients)
+            patients = MockData.patients
+        }
+        let first = patients.first ?? MockData.patients.first!
+        selectedPatientID = first.id
+        selectedAppointmentID = first.appointments.first?.id
+        selectedSessionID = first.sessions.first?.id
         loadQuestionnaires()
         loadClinicalCatalogs()
     }
+
+    // MARK: - Computed properties
 
     var selectedPatientIndex: Int {
         patients.firstIndex(where: { $0.id == selectedPatientID }) ?? 0
@@ -68,13 +85,11 @@ final class AppStore {
 
     var filteredPatients: [Patient] {
         patients.filter { patient in
-            let filterMatch: Bool
-            switch patientFilter {
-            case .aktiv: filterMatch = patient.status == .aktiv
-            case .archiv: filterMatch = patient.status == .archiviert
-            case .alle: filterMatch = true
+            let filterMatch: Bool = switch patientFilter {
+            case .aktiv: patient.status == .aktiv
+            case .archiv: patient.status == .archiviert
+            case .alle: true
             }
-
             let query = patientSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
             let searchMatch = query.isEmpty || patient.fullName.localizedCaseInsensitiveContains(query)
             return filterMatch && searchMatch
@@ -98,9 +113,16 @@ final class AppStore {
     }
 
     var todayAgenda: [(patient: Patient, appointment: AppointmentRecord)] {
-        patients.flatMap { patient in
-            patient.appointments.compactMap { appointment in
-                appointment.dayNumber == "5" && appointment.month == "Jun" ? (patient, appointment) : nil
+        let cal = Calendar.current
+        let now = Date()
+        let day = String(cal.component(.day, from: now))
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "de_DE")
+        fmt.dateFormat = "MMM"
+        let month = fmt.string(from: now)
+        return patients.flatMap { patient in
+            patient.appointments.compactMap { appt in
+                appt.dayNumber == day && appt.month == month ? (patient, appt) : nil
             }
         }
         .sorted { $0.appointment.time < $1.appointment.time }
@@ -115,31 +137,29 @@ final class AppStore {
     }
 
     var filteredDocuments: [PatientDocument] {
-        selectedPatient.documents.filter { document in
-            let searchMatch = documentSearchText.isEmpty || document.filename.localizedCaseInsensitiveContains(documentSearchText)
-            let categoryMatch = selectedDocumentCategory == nil || document.category == selectedDocumentCategory
+        selectedPatient.documents.filter { doc in
+            let searchMatch = documentSearchText.isEmpty || doc.filename.localizedCaseInsensitiveContains(documentSearchText)
+            let categoryMatch = selectedDocumentCategory == nil || doc.category == selectedDocumentCategory
             return searchMatch && categoryMatch
         }
     }
 
     var groupedDocuments: [(year: String, documents: [PatientDocument])] {
         let groups = Dictionary(grouping: filteredDocuments) { $0.year }
-        return groups.keys.sorted(by: >).map { year in
-            (year, groups[year] ?? [])
-        }
+        return groups.keys.sorted(by: >).map { year in (year, groups[year] ?? []) }
     }
 
     var selectedQuestionnaire: FHIRQuestionnaire? {
         installedQuestionnaires.first { $0.id == selectedQuestionnaireID } ?? installedQuestionnaires.first
     }
 
-    var questionnaireMenuOptions: [String] {
-        installedQuestionnaires.map(\.id)
-    }
+    var questionnaireMenuOptions: [String] { installedQuestionnaires.map(\.id) }
 
     func questionnaireTitle(for id: String) -> String {
         installedQuestionnaires.first(where: { $0.id == id })?.displayTitle ?? id
     }
+
+    // MARK: - Navigation
 
     func selectPatient(_ id: UUID) {
         selectedPatientID = id
@@ -154,58 +174,84 @@ final class AppStore {
         sidebarSelection = .heute
     }
 
-    func selectSession(_ sessionID: UUID) {
-        selectedSessionID = sessionID
-    }
+    func selectSession(_ sessionID: UUID) { selectedSessionID = sessionID }
+
+    // MARK: - Mutation primitives
 
     func updateSelectedPatient(_ mutate: (inout Patient) -> Void) {
         mutate(&patients[selectedPatientIndex])
+        schedulePatientSave()
     }
 
     func updateSelectedSession(_ mutate: (inout SessionRecord) -> Void) {
         guard let selectedSessionID,
               let index = selectedPatient.sessions.firstIndex(where: { $0.id == selectedSessionID }) else { return }
         mutate(&patients[selectedPatientIndex].sessions[index])
+        scheduleSessionSave()
     }
 
-    func addDiagnosis(code: String, name: String, statusText: String = "gesichert", since: String = "2026") {
-        let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedCode.isEmpty, !trimmedName.isEmpty else { return }
-        guard !selectedPatient.diagnoses.contains(where: { $0.code == trimmedCode }) else { return }
-        updateSelectedPatient {
-            $0.diagnoses.append(Diagnosis(code: trimmedCode, name: trimmedName, statusText: statusText, since: since))
+    // MARK: - Debounced scalar saves
+
+    private func schedulePatientSave() {
+        _savePatientTask?.cancel()
+        let patient = selectedPatient
+        _savePatientTask = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            try? PatientRepository.updatePatientScalars(patient)
         }
+    }
+
+    private func scheduleSessionSave() {
+        _saveSessionTask?.cancel()
+        guard let session = selectedSession else { return }
+        _saveSessionTask = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            try? PatientRepository.updateSession(session)
+        }
+    }
+
+    // MARK: - Diagnoses
+
+    func addDiagnosis(code: String, name: String, statusText: String = "gesichert", since: String = "2026") {
+        let code = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty, !name.isEmpty else { return }
+        guard !selectedPatient.diagnoses.contains(where: { $0.code == code }) else { return }
+        let d = Diagnosis(code: code, name: name, statusText: statusText, since: since)
+        updateSelectedPatient { $0.diagnoses.append(d) }
+        try? PatientRepository.insertDiagnosis(d, patientID: selectedPatientID)
     }
 
     func removeDiagnosis(_ diagnosisID: UUID) {
-        updateSelectedPatient {
-            $0.diagnoses.removeAll { $0.id == diagnosisID }
-        }
+        updateSelectedPatient { $0.diagnoses.removeAll { $0.id == diagnosisID } }
+        try? PatientRepository.deleteDiagnosis(id: diagnosisID)
     }
+
+    // MARK: - Safety flags
 
     func toggleSafetyFlag(_ flag: String) {
         updateSelectedPatient { patient in
-            if patient.safetyFlags.contains(flag) {
-                patient.safetyFlags.remove(flag)
-            } else {
-                patient.safetyFlags.insert(flag)
-            }
+            if patient.safetyFlags.contains(flag) { patient.safetyFlags.remove(flag) }
+            else { patient.safetyFlags.insert(flag) }
         }
+        // persisted via debounced scalar save in updateSelectedPatient
     }
 
+    // MARK: - Medications
+
     func addMedication(name: String, dose: String, frequency: String, since: String = "Heute") {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
-        updateSelectedPatient {
-            $0.medications.append(Medication(name: trimmedName, dose: dose, frequency: frequency, since: since))
-        }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let m = Medication(name: name, dose: dose, frequency: frequency, since: since)
+        updateSelectedPatient { $0.medications.append(m) }
+        try? PatientRepository.insertMedication(m, patientID: selectedPatientID)
     }
 
     func removeMedication(_ medicationID: UUID) {
-        updateSelectedPatient {
-            $0.medications.removeAll { $0.id == medicationID }
-        }
+        updateSelectedPatient { $0.medications.removeAll { $0.id == medicationID } }
+        try? PatientRepository.deleteMedication(id: medicationID)
     }
 
     func updateMedication(_ medicationID: UUID, mutate: (inout Medication) -> Void) {
@@ -213,20 +259,23 @@ final class AppStore {
             guard let index = patient.medications.firstIndex(where: { $0.id == medicationID }) else { return }
             mutate(&patient.medications[index])
         }
+        guard let m = selectedPatient.medications.first(where: { $0.id == medicationID }) else { return }
+        try? PatientRepository.updateMedication(m, patientID: selectedPatientID)
     }
 
+    // MARK: - Prior treatments
+
     func addPriorTreatment(type: String, title: String, detail: String) {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return }
-        updateSelectedPatient {
-            $0.priorTreatments.append(PriorTreatment(type: type, title: trimmedTitle, detail: detail))
-        }
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        let t = PriorTreatment(type: type, title: title, detail: detail)
+        updateSelectedPatient { $0.priorTreatments.append(t) }
+        try? PatientRepository.insertPriorTreatment(t, patientID: selectedPatientID)
     }
 
     func removePriorTreatment(_ treatmentID: UUID) {
-        updateSelectedPatient {
-            $0.priorTreatments.removeAll { $0.id == treatmentID }
-        }
+        updateSelectedPatient { $0.priorTreatments.removeAll { $0.id == treatmentID } }
+        try? PatientRepository.deletePriorTreatment(id: treatmentID)
     }
 
     func updatePriorTreatment(_ treatmentID: UUID, mutate: (inout PriorTreatment) -> Void) {
@@ -234,7 +283,11 @@ final class AppStore {
             guard let index = patient.priorTreatments.firstIndex(where: { $0.id == treatmentID }) else { return }
             mutate(&patient.priorTreatments[index])
         }
+        guard let t = selectedPatient.priorTreatments.first(where: { $0.id == treatmentID }) else { return }
+        try? PatientRepository.updatePriorTreatment(t, patientID: selectedPatientID)
     }
+
+    // MARK: - Sessions
 
     func addSession() {
         let nextNumber = (selectedPatient.sessions.map(\.number).max() ?? 0) + 1
@@ -242,12 +295,12 @@ final class AppStore {
             number: nextNumber,
             shortType: "VT",
             type: "Verhaltenstherapie",
-            date: "Fr. 6. Juni 2025",
+            date: currentDateLabel(),
             durationMinutes: 50,
             topics: ["Neues Thema"],
             interventions: [],
             homework: "",
-            note: "Neue mock Sitzung angelegt.",
+            note: "",
             gopEntries: [GOPEntry(code: "870", description: "Psychotherapeutische Behandlung, Einzelbehandlung, 50 Minuten", factor: 2.3, basePrice: 40.22)]
         )
         updateSelectedPatient {
@@ -255,31 +308,50 @@ final class AppStore {
             $0.sessionCount = max($0.sessionCount, nextNumber)
         }
         selectedSessionID = session.id
+        try? PatientRepository.insertSession(session, patientID: selectedPatientID)
     }
 
+    // MARK: - Topics & interventions
+
+    func addTopic(_ topic: String) {
+        let t = topic.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        updateSelectedSession { $0.topics.append(t) }
+    }
+
+    func removeTopic(_ topic: String) {
+        updateSelectedSession { $0.topics.removeAll { $0 == topic } }
+    }
+
+    func addIntervention(_ intervention: String) {
+        let i = intervention.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !i.isEmpty else { return }
+        updateSelectedSession { $0.interventions.append(i) }
+    }
+
+    func removeIntervention(_ intervention: String) {
+        updateSelectedSession { $0.interventions.removeAll { $0 == intervention } }
+    }
+
+    // MARK: - GOP entries
+
     func addGOPEntry(
-        code: String,
-        description: String,
-        factor: Double,
-        basePrice: Double,
-        maxFactorNoJustification: Double = 2.3,
-        maxFactor: Double = 3.5,
+        code: String, description: String, factor: Double, basePrice: Double,
+        maxFactorNoJustification: Double = 2.3, maxFactor: Double = 3.5,
         commonFactors: [Double] = [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
     ) {
-        let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedCode.isEmpty, !trimmedDescription.isEmpty else { return }
-        updateSelectedSession {
-            $0.gopEntries.append(GOPEntry(
-                code: trimmedCode,
-                description: trimmedDescription,
-                factor: min(factor, maxFactor),
-                basePrice: basePrice,
-                maxFactorNoJustification: maxFactorNoJustification,
-                maxFactor: maxFactor,
-                commonFactors: commonFactors
-            ))
-        }
+        let code = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let desc = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty, !desc.isEmpty else { return }
+        let entry = GOPEntry(
+            code: code, description: desc,
+            factor: min(factor, maxFactor), basePrice: basePrice,
+            maxFactorNoJustification: maxFactorNoJustification,
+            maxFactor: maxFactor, commonFactors: commonFactors
+        )
+        guard let sessionID = selectedSession?.id else { return }
+        updateSelectedSession { $0.gopEntries.append(entry) }
+        try? PatientRepository.insertGOPEntry(entry, sessionID: sessionID)
     }
 
     func setGOPFactor(entryID: UUID, factor: Double) {
@@ -287,25 +359,35 @@ final class AppStore {
             guard let index = session.gopEntries.firstIndex(where: { $0.id == entryID }) else { return }
             session.gopEntries[index].factor = factor
         }
+        try? PatientRepository.updateGOPFactor(id: entryID, factor: factor)
     }
 
     func removeGOPEntry(_ entryID: UUID) {
-        updateSelectedSession {
-            $0.gopEntries.removeAll { $0.id == entryID }
-        }
+        updateSelectedSession { $0.gopEntries.removeAll { $0.id == entryID } }
+        try? PatientRepository.deleteGOPEntry(id: entryID)
     }
+
+    // MARK: - Patient status
 
     func archiveSelectedPatient() {
         updateSelectedPatient { $0.status = .archiviert }
         patientFilter = .alle
+        try? PatientRepository.updatePatientStatus(id: selectedPatientID, status: .archiviert)
     }
+
+    // MARK: - Appointments
 
     func createAppointment() {
         let nextNumber = (selectedPatient.appointments.compactMap(\.sessionNumber).max() ?? selectedPatient.sessionCount) + 1
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "de_DE")
+        fmt.dateFormat = "MMM"
+        let month = fmt.string(from: Date())
+        let day = String(Calendar.current.component(.day, from: Date()))
         let appointment = AppointmentRecord(
             dateLabel: draftAppointment.date,
-            dayNumber: String(draftAppointment.date.prefix(2)).replacingOccurrences(of: ".", with: ""),
-            month: "Jun",
+            dayNumber: day,
+            month: month,
             time: draftAppointment.time,
             durationMinutes: Int(draftAppointment.duration) ?? 50,
             title: "\(draftAppointment.type) #\(nextNumber)",
@@ -319,7 +401,10 @@ final class AppStore {
             $0.appointments.insert(appointment, at: 0)
             $0.nextAppointmentText = "\(draftAppointment.date) · \(draftAppointment.time)"
         }
+        try? PatientRepository.insertAppointment(appointment, patientID: selectedPatientID)
     }
+
+    // MARK: - Documents
 
     func addUploadedDocument() {
         let document = PatientDocument(
@@ -328,18 +413,26 @@ final class AppStore {
             size: "64 KB",
             source: "hochgeladen",
             category: .sonstiges,
-            date: "05.06.2026",
-            year: "2026"
+            date: currentDateLabel(),
+            year: String(Calendar.current.component(.year, from: Date()))
+        )
+        let event = TimelineEvent(
+            date: document.date,
+            title: "Dokument hochgeladen",
+            subtitle: document.filename,
+            kind: .document
         )
         updateSelectedPatient {
             $0.documents.insert(document, at: 0)
-            $0.timeline.insert(TimelineEvent(date: document.date, title: "Dokument hochgeladen", subtitle: document.filename, kind: .document), at: 0)
+            $0.timeline.insert(event, at: 0)
         }
+        try? PatientRepository.insertDocument(document, event: event, patientID: selectedPatientID)
     }
+
+    // MARK: - Questionnaires
 
     func startQRSession() {
         guard let questionnaire = selectedQuestionnaire else { return }
-
         questionnaireServer?.stop()
         let server = QuestionnaireServer()
         let token = randomToken()
@@ -348,26 +441,18 @@ final class AppStore {
             name: selectedPatient.fullName,
             birthDate: selectedPatient.birthDate
         )
-
         do {
             try server.start(token: token, questionnaire: questionnaire, patient: patientIdentity) { [weak self] answers in
                 self?.saveQuestionnaireResponse(questionnaire: questionnaire, answers: answers)
             }
             questionnaireServer = server
-            qrSession = QRSession(
-                token: token,
-                questionnaireName: questionnaire.displayTitle,
-                questionnaireID: questionnaire.id,
-                url: url
-            )
+            qrSession = QRSession(token: token, questionnaireName: questionnaire.displayTitle,
+                                  questionnaireID: questionnaire.id, url: url)
         } catch {
-            qrSession = QRSession(
-                token: token,
-                questionnaireName: questionnaire.displayTitle,
-                questionnaireID: questionnaire.id,
-                url: "Server konnte nicht gestartet werden: \(error.localizedDescription)",
-                phase: .completed
-            )
+            qrSession = QRSession(token: token, questionnaireName: questionnaire.displayTitle,
+                                  questionnaireID: questionnaire.id,
+                                  url: "Server konnte nicht gestartet werden: \(error.localizedDescription)",
+                                  phase: .completed)
         }
     }
 
@@ -397,16 +482,20 @@ final class AppStore {
             tier: tier,
             answers: answerRows
         )
-
+        let event = TimelineEvent(
+            date: result.date,
+            title: "\(result.questionnaireName) eingegangen",
+            subtitle: "Score \(result.score) · \(result.tier.rawValue)",
+            kind: .questionnaire
+        )
         updateSelectedPatient {
             $0.questionnaireResults.insert(result, at: 0)
-            $0.timeline.insert(TimelineEvent(date: result.date, title: "\(result.questionnaireName) eingegangen", subtitle: "Score \(result.score) · \(result.tier.rawValue)", kind: .questionnaire), at: 0)
+            $0.timeline.insert(event, at: 0)
         }
+        try? PatientRepository.insertQuestionnaireResult(result, answers: answerRows, patientID: selectedPatientID)
+        try? PatientRepository.insertTimelineEvent(event, patientID: selectedPatientID)
 
-        if var current = qrSession {
-            current.phase = .completed
-            qrSession = current
-        }
+        if var current = qrSession { current.phase = .completed; qrSession = current }
         questionnaireServer?.stop()
         questionnaireServer = nil
     }
@@ -415,26 +504,6 @@ final class AppStore {
         questionnaireServer?.stop()
         questionnaireServer = nil
         qrSession = nil
-    }
-
-    func addTopic(_ topic: String) {
-        let trimmed = topic.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        updateSelectedSession { $0.topics.append(trimmed) }
-    }
-
-    func removeTopic(_ topic: String) {
-        updateSelectedSession { $0.topics.removeAll { $0 == topic } }
-    }
-
-    func addIntervention(_ intervention: String) {
-        let trimmed = intervention.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        updateSelectedSession { $0.interventions.append(trimmed) }
-    }
-
-    func removeIntervention(_ intervention: String) {
-        updateSelectedSession { $0.interventions.removeAll { $0 == intervention } }
     }
 
     func questionnaireDescription(for name: String) -> String {
@@ -448,116 +517,103 @@ final class AppStore {
         }
     }
 
-    private func loadQuestionnaires() {
-        let urls = Bundle.module.urls(forResourcesWithExtension: "json", subdirectory: "Resources") ?? []
-        let questionnaireURLs = urls.filter { !$0.lastPathComponent.hasSuffix("-scoring.json") }
-
-        installedQuestionnaires = questionnaireURLs.compactMap { url in
-            guard let data = try? Data(contentsOf: url),
-                  var questionnaire = try? JSONDecoder().decode(FHIRQuestionnaire.self, from: data) else {
-                return nil
-            }
-
-            let scoringURL = url.deletingLastPathComponent()
-                .appendingPathComponent("\(questionnaire.id)-scoring.json")
-            if let scoringData = try? Data(contentsOf: scoringURL),
-               let scoringTiers = try? JSONDecoder().decode([ScoringTier].self, from: scoringData) {
-                questionnaire.scoringTiers = scoringTiers
-            }
-
-            return questionnaire
-        }
-        .sorted { $0.displayTitle < $1.displayTitle }
-
-        selectedQuestionnaireID = installedQuestionnaires.first?.id ?? ""
-    }
-
-    private func loadClinicalCatalogs() {
-        let decoder = JSONDecoder()
-
-        if let url = Bundle.module.url(forResource: "icd10_codes", withExtension: "json", subdirectory: "Resources"),
-           let data = try? Data(contentsOf: url),
-           let catalog = try? decoder.decode(ICDCatalog.self, from: data) {
-            icdCatalog = catalog.codes
-        }
-
-        if let url = Bundle.module.url(forResource: "gop_codes", withExtension: "json", subdirectory: "Resources"),
-           let data = try? Data(contentsOf: url),
-           let catalog = try? decoder.decode([GOPCatalogEntry].self, from: data) {
-            gopCatalog = catalog
-        }
-
-        medicationCatalog = [
-            ClinicalChoice(id: "sertralin", title: "Sertralin", subtitle: "1x morgens", badge: "50 mg"),
-            ClinicalChoice(id: "escitalopram", title: "Escitalopram", subtitle: "1x morgens", badge: "10 mg"),
-            ClinicalChoice(id: "venlafaxin", title: "Venlafaxin retard", subtitle: "1x morgens", badge: "75 mg"),
-            ClinicalChoice(id: "mirtazapin", title: "Mirtazapin", subtitle: "abends", badge: "15 mg"),
-            ClinicalChoice(id: "quetiapin", title: "Quetiapin", subtitle: "abends", badge: "25 mg"),
-            ClinicalChoice(id: "none", title: "Keine aktuelle Medikation", subtitle: "anamnestisch vermerkt", badge: "Info")
-        ]
-
-        priorTreatmentCatalog = [
-            ClinicalChoice(id: "ambulant-vt", title: "Ambulante Verhaltenstherapie", subtitle: "Vorbehandler / Zeitraum ergänzen", badge: "PT"),
-            ClinicalChoice(id: "ambulant-tp", title: "Ambulante tiefenpsychologische Therapie", subtitle: "Vorbehandler / Zeitraum ergänzen", badge: "PT"),
-            ClinicalChoice(id: "stationaer", title: "Stationäre psychosomatische Behandlung", subtitle: "Klinik / Zeitraum ergänzen", badge: "Klinik"),
-            ClinicalChoice(id: "tagesklinik", title: "Tagesklinische Behandlung", subtitle: "Einrichtung / Zeitraum ergänzen", badge: "Klinik"),
-            ClinicalChoice(id: "psychiater", title: "Psychiatrische Mitbehandlung", subtitle: "Arzt / Zeitraum ergänzen", badge: "Arzt"),
-            ClinicalChoice(id: "keine", title: "Keine psychotherapeutische Vorbehandlung", subtitle: "anamnestisch vermerkt", badge: "Info")
-        ]
-    }
+    // MARK: - Catalog search
 
     func matchingICDCodes(_ query: String) -> [ICDCode] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = trimmed.isEmpty ? icdCatalog : icdCatalog.filter {
-            $0.code.localizedCaseInsensitiveContains(trimmed) ||
-            $0.description.localizedCaseInsensitiveContains(trimmed)
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = q.isEmpty ? icdCatalog : icdCatalog.filter {
+            $0.code.localizedCaseInsensitiveContains(q) || $0.description.localizedCaseInsensitiveContains(q)
         }
         return Array(base.prefix(8))
     }
 
     func matchingGOPCodes(_ query: String) -> [GOPCatalogEntry] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = trimmed.isEmpty ? gopCatalog : gopCatalog.filter {
-            $0.code.localizedCaseInsensitiveContains(trimmed) ||
-            $0.description.localizedCaseInsensitiveContains(trimmed)
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return q.isEmpty ? gopCatalog : gopCatalog.filter {
+            $0.code.localizedCaseInsensitiveContains(q) || $0.description.localizedCaseInsensitiveContains(q)
         }
-        return base
+    }
+
+    // MARK: - Private helpers
+
+    private func loadQuestionnaires() {
+        let urls = Bundle.module.urls(forResourcesWithExtension: "json", subdirectory: "Resources") ?? []
+        installedQuestionnaires = urls
+            .filter { !$0.lastPathComponent.hasSuffix("-scoring.json") }
+            .compactMap { url -> FHIRQuestionnaire? in
+                guard let data = try? Data(contentsOf: url),
+                      var q = try? JSONDecoder().decode(FHIRQuestionnaire.self, from: data) else { return nil }
+                let scoringURL = url.deletingLastPathComponent()
+                    .appendingPathComponent("\(q.id)-scoring.json")
+                if let sd = try? Data(contentsOf: scoringURL),
+                   let tiers = try? JSONDecoder().decode([ScoringTier].self, from: sd) {
+                    q.scoringTiers = tiers
+                }
+                return q
+            }
+            .sorted { $0.displayTitle < $1.displayTitle }
+        selectedQuestionnaireID = installedQuestionnaires.first?.id ?? ""
+    }
+
+    private func loadClinicalCatalogs() {
+        let decoder = JSONDecoder()
+        if let url = Bundle.module.url(forResource: "icd10_codes", withExtension: "json", subdirectory: "Resources"),
+           let data = try? Data(contentsOf: url),
+           let catalog = try? decoder.decode(ICDCatalog.self, from: data) {
+            icdCatalog = catalog.codes
+        }
+        if let url = Bundle.module.url(forResource: "gop_codes", withExtension: "json", subdirectory: "Resources"),
+           let data = try? Data(contentsOf: url),
+           let catalog = try? decoder.decode([GOPCatalogEntry].self, from: data) {
+            gopCatalog = catalog
+        }
+        medicationCatalog = [
+            ClinicalChoice(id: "sertralin",    title: "Sertralin",           subtitle: "1x morgens", badge: "50 mg"),
+            ClinicalChoice(id: "escitalopram", title: "Escitalopram",        subtitle: "1x morgens", badge: "10 mg"),
+            ClinicalChoice(id: "venlafaxin",   title: "Venlafaxin retard",   subtitle: "1x morgens", badge: "75 mg"),
+            ClinicalChoice(id: "mirtazapin",   title: "Mirtazapin",          subtitle: "abends",     badge: "15 mg"),
+            ClinicalChoice(id: "quetiapin",    title: "Quetiapin",           subtitle: "abends",     badge: "25 mg"),
+            ClinicalChoice(id: "none",         title: "Keine aktuelle Medikation", subtitle: "anamnestisch vermerkt", badge: "Info"),
+        ]
+        priorTreatmentCatalog = [
+            ClinicalChoice(id: "ambulant-vt",  title: "Ambulante Verhaltenstherapie",             subtitle: "Vorbehandler / Zeitraum ergänzen", badge: "PT"),
+            ClinicalChoice(id: "ambulant-tp",  title: "Ambulante tiefenpsychologische Therapie",  subtitle: "Vorbehandler / Zeitraum ergänzen", badge: "PT"),
+            ClinicalChoice(id: "stationaer",   title: "Stationäre psychosomatische Behandlung",   subtitle: "Klinik / Zeitraum ergänzen",       badge: "Klinik"),
+            ClinicalChoice(id: "tagesklinik",  title: "Tagesklinische Behandlung",                subtitle: "Einrichtung / Zeitraum ergänzen",  badge: "Klinik"),
+            ClinicalChoice(id: "psychiater",   title: "Psychiatrische Mitbehandlung",             subtitle: "Arzt / Zeitraum ergänzen",         badge: "Arzt"),
+            ClinicalChoice(id: "keine",        title: "Keine psychotherapeutische Vorbehandlung", subtitle: "anamnestisch vermerkt",            badge: "Info"),
+        ]
     }
 
     private func randomToken() -> String {
-        let characters = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-        return String((0..<16).compactMap { _ in characters.randomElement() })
+        let chars = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        return String((0..<16).compactMap { _ in chars.randomElement() })
     }
 
     private func currentDateLabel() -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "de_DE")
-        formatter.dateFormat = "dd.MM.yyyy"
-        return formatter.string(from: Date())
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "de_DE")
+        fmt.dateFormat = "dd.MM.yyyy"
+        return fmt.string(from: Date())
     }
+
 
     private func questionnaireTier(for scoringTier: ScoringTier?, score: Int) -> QuestionnaireTier {
         if let scoringTier {
             switch scoringTier.color {
-            case "green":
-                return .minimal
-            case "yellow":
-                return .leicht
-            case "orange":
-                return .mittel
-            case "red":
-                return score >= 20 ? .schwer : .mittelPlus
-            default:
-                break
+            case "green":  return .minimal
+            case "yellow": return .leicht
+            case "orange": return .mittel
+            case "red":    return score >= 20 ? .schwer : .mittelPlus
+            default: break
             }
         }
-
         switch score {
-        case 0...4: return .minimal
-        case 5...9: return .leicht
+        case 0...4:   return .minimal
+        case 5...9:   return .leicht
         case 10...14: return .mittel
         case 15...19: return .mittelPlus
-        default: return .schwer
+        default:      return .schwer
         }
     }
 }

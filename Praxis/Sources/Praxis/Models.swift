@@ -188,9 +188,9 @@ enum DocumentCategory: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum PatientStatus {
-    case aktiv
-    case archiviert
+enum PatientStatus: String {
+    case aktiv = "aktiv"
+    case archiviert = "archiviert"
 }
 
 struct Diagnosis: Identifiable, Hashable {
@@ -434,10 +434,10 @@ struct PatientDocument: Identifiable {
 }
 
 struct TimelineEvent: Identifiable {
-    enum Kind {
-        case session
-        case questionnaire
-        case document
+    enum Kind: String {
+        case session = "session"
+        case questionnaire = "questionnaire"
+        case document = "document"
     }
 
     let id: UUID
