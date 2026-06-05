@@ -1,0 +1,582 @@
+[
+  {
+    "code": "1",
+    "description": "Beratung – auch mittels Fernsprecher",
+    "points": 80,
+    "base_price_cents": 466,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "3",
+    "description": "Eingehende, das gewöhnliche Maß übersteigende Beratung, mind. 10 Min.",
+    "points": 150,
+    "base_price_cents": 874,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "4",
+    "description": "Erhebung der Fremdanamnese und/oder Unterweisung und Führung der Bezugsperson(en)",
+    "points": 220,
+    "base_price_cents": 1282,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "5",
+    "description": "Symptombezogene Untersuchung",
+    "points": 80,
+    "base_price_cents": 466,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "15",
+    "description": "Einleitung und Koordination flankierender therapeutischer und sozialer Maßnahmen",
+    "points": 300,
+    "base_price_cents": 1749,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "20",
+    "description": "Beratungsgespräch in Gruppen von 4 bis 12 Teilnehmern, mind. 50 Min., je Teilnehmer",
+    "points": 120,
+    "base_price_cents": 699,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "22",
+    "description": "Eingehende Beratung einer Schwangeren im Konfliktfall",
+    "points": 300,
+    "base_price_cents": 1749,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "34",
+    "description": "Erörterung (mind. 20 Min.) der Auswirkungen einer Krankheit auf die Lebensgestaltung",
+    "points": 300,
+    "base_price_cents": 1749,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "45",
+    "description": "Visite im Krankenhaus",
+    "points": 70,
+    "base_price_cents": 408,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "46",
+    "description": "Zweitvisite im Krankenhaus",
+    "points": 50,
+    "base_price_cents": 291,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "50",
+    "description": "Besuch, einschließlich Beratung und symptombezogene Untersuchung",
+    "points": 320,
+    "base_price_cents": 1865,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "51",
+    "description": "Besuch eines weiteren Kranken in derselben häuslichen Gemeinschaft",
+    "points": 250,
+    "base_price_cents": 1457,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "55",
+    "description": "Begleitung eines Patienten zur stationären Behandlung",
+    "points": 500,
+    "base_price_cents": 2914,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "56",
+    "description": "Verweilen, je angefangene halbe Stunde",
+    "points": 180,
+    "base_price_cents": 1049,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.8,
+    "max_factor": 2.5,
+    "common_factors": [1.0, 1.2, 1.5, 1.8, 2.0, 2.3, 2.5]
+  },
+  {
+    "code": "60",
+    "description": "Konsiliarische Erörterung zwischen zwei oder mehr Ärzten",
+    "points": 120,
+    "base_price_cents": 699,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "70",
+    "description": "Kurze Bescheinigung oder kurzes Zeugnis",
+    "points": 40,
+    "base_price_cents": 233,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "75",
+    "description": "Ausführlicher schriftlicher Krankheits- und Befundbericht",
+    "points": 130,
+    "base_price_cents": 758,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "80",
+    "description": "Schriftliche gutachtliche Äußerung",
+    "points": 300,
+    "base_price_cents": 1749,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "85",
+    "description": "Schriftliche gutachtliche Äußerung mit Mehraufwand, je Stunde",
+    "points": 500,
+    "base_price_cents": 2914,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "90",
+    "description": "Schriftliche Feststellung über Schwangerschaftsabbruch-Indikation",
+    "points": 120,
+    "base_price_cents": 699,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "95",
+    "description": "Schreibgebühr, je angefangene DIN-A4-Seite",
+    "points": 60,
+    "base_price_cents": 350,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "96",
+    "description": "Schreibgebühr, je Kopie",
+    "points": 3,
+    "base_price_cents": 17,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "A",
+    "description": "Zuschlag für außerhalb der Sprechstunde erbrachte Leistungen",
+    "points": 70,
+    "base_price_cents": 408,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "B",
+    "description": "Zuschlag für Leistungen zw. 20-22 Uhr oder 6-8 Uhr",
+    "points": 180,
+    "base_price_cents": 1049,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "C",
+    "description": "Zuschlag für Leistungen zw. 22-6 Uhr",
+    "points": 320,
+    "base_price_cents": 1865,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "D",
+    "description": "Zuschlag für an Samstagen, Sonn- oder Feiertagen erbrachte Leistungen",
+    "points": 220,
+    "base_price_cents": 1282,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "E",
+    "description": "Zuschlag für dringend angeforderte und unverzüglich erfolgte Ausführung",
+    "points": 160,
+    "base_price_cents": 933,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "F",
+    "description": "Zuschlag für Leistungen zw. 20-22 Uhr oder 6-8 Uhr (Besuche)",
+    "points": 260,
+    "base_price_cents": 1515,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "G",
+    "description": "Zuschlag für Leistungen zw. 22-6 Uhr (Besuche)",
+    "points": 450,
+    "base_price_cents": 2623,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "H",
+    "description": "Zuschlag für an Samstagen, Sonn- und Feiertagen erbrachte Leistungen (Besuche)",
+    "points": 340,
+    "base_price_cents": 1982,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "K1",
+    "description": "Zuschlag zu Untersuchungen bei Kindern bis zum vollendeten 4. Lebensjahr",
+    "points": 120,
+    "base_price_cents": 699,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.0,
+    "max_factor": 1.0,
+    "common_factors": [1.0]
+  },
+  {
+    "code": "801",
+    "description": "Eingehende psychiatrische Untersuchung",
+    "points": 250,
+    "base_price_cents": 1457,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "808",
+    "description": "Einleitung oder Verlängerung der tiefenpsychologisch fundierten oder analytischen Psychotherapie",
+    "points": 400,
+    "base_price_cents": 2331,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "833",
+    "description": "Begleitung eines psychisch Kranken bei Überführung in die Klinik",
+    "points": 285,
+    "base_price_cents": 1661,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "835",
+    "description": "Fremdanamnese über einen psychisch Kranken oder verhaltensgestörtes Kind",
+    "points": 64,
+    "base_price_cents": 373,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "845",
+    "description": "Behandlung einer Einzelperson durch Hypnose",
+    "points": 150,
+    "base_price_cents": 874,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "846",
+    "description": "Übende Verfahren (z.B. autogenes Training), Einzelbehandlung, mind. 20 Min.",
+    "points": 150,
+    "base_price_cents": 874,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "847",
+    "description": "Übende Verfahren (z.B. autogenes Training), Gruppenbehandlung (max. 12 Teilnehmer), mind. 20 Min., je Teilnehmer",
+    "points": 45,
+    "base_price_cents": 262,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "846",
+    "description": "Übende Verfahren (z. B. autogenes Training), Einzelbehandlung, mind. 20 Min.",
+    "points": 150,
+    "base_price_cents": 874,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "847",
+    "description": "Übende Verfahren, Gruppenbehandlung mit höchstens 12 Teilnehmern, mind. 20 Min., je Teilnehmer",
+    "points": 45,
+    "base_price_cents": 262,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "849",
+    "description": "Psychotherapeutische Behandlung bei psychoreaktiven, psychosomatischen oder neurotischen Störungen, mind. 20 Min., Einzelbehandlung",
+    "points": 230,
+    "base_price_cents": 1341,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "855",
+    "description": "Anwendung und Auswertung projektiver Testverfahren (z.B. Rorschach-Test, TAT) mit schriftlicher Aufzeichnung",
+    "points": 722,
+    "base_price_cents": 4208,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.8,
+    "max_factor": 2.5,
+    "common_factors": [1.0, 1.2, 1.5, 1.8, 2.0, 2.3, 2.5]
+  },
+  {
+    "code": "856",
+    "description": "Anwendung und Auswertung standardisierter Intelligenz- und Entwicklungstests (z.B. HAWIE, IST) mit schriftlicher Aufzeichnung",
+    "points": 361,
+    "base_price_cents": 2104,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.8,
+    "max_factor": 2.5,
+    "common_factors": [1.0, 1.2, 1.5, 1.8, 2.0, 2.3, 2.5]
+  },
+  {
+    "code": "857",
+    "description": "Anwendung und Auswertung orientierender Testuntersuchungen (z.B. Fragebogentest nach Eysenck, Raven-Test, Sceno-Test)",
+    "points": 116,
+    "base_price_cents": 676,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 1.8,
+    "max_factor": 2.5,
+    "common_factors": [1.0, 1.2, 1.5, 1.8, 2.0, 2.3, 2.5]
+  },
+  {
+    "code": "860",
+    "description": "Erhebung einer biographischen Anamnese unter neurosepsychologischen Gesichtspunkten mit schriftlicher Aufzeichnung",
+    "points": 920,
+    "base_price_cents": 5362,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "861",
+    "description": "Tiefenpsychologisch fundierte Psychotherapie, Einzelbehandlung, mind. 50 Min.",
+    "points": 690,
+    "base_price_cents": 4022,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "862",
+    "description": "Tiefenpsychologisch fundierte Psychotherapie, Gruppenbehandlung (max. 8 Personen), mind. 100 Min., je Teilnehmer",
+    "points": 345,
+    "base_price_cents": 2011,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "863",
+    "description": "Analytische Psychotherapie, Einzelbehandlung, mind. 50 Min.",
+    "points": 690,
+    "base_price_cents": 4022,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "864",
+    "description": "Analytische Psychotherapie, Gruppenbehandlung (max. 8 Personen), mind. 100 Min., je Teilnehmer",
+    "points": 345,
+    "base_price_cents": 2011,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "865",
+    "description": "Besprechung mit dem nichtärztlichen Psychotherapeuten über die Fortsetzung der Behandlung",
+    "points": 345,
+    "base_price_cents": 2011,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "870",
+    "description": "Verhaltenstherapie, Einzelbehandlung, mind. 50 Min.",
+    "points": 750,
+    "base_price_cents": 4372,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "871",
+    "description": "Verhaltenstherapie, Gruppenbehandlung (max. 8 Personen), mind. 50 Min., je Teilnehmer",
+    "points": 150,
+    "base_price_cents": 874,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "870a",
+    "description": "Systemische Therapie / Neuropsychologische Psychotherapie / EMDR, Einzelbehandlung, mind. 50 Min. (analog)",
+    "points": 750,
+    "base_price_cents": 4372,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "812a",
+    "description": "Psychotherapeutische Sprechstunde, je 25 Min. (analog)",
+    "points": 500,
+    "base_price_cents": 2914,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "1",
+    "description": "Beratung – auch mittels Fernsprecher",
+    "points": 80,
+    "base_price_cents": 466,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "3",
+    "description": "Eingehende, das gewöhnliche Maß übersteigende Beratung, mind. 10 Min.",
+    "points": 150,
+    "base_price_cents": 874,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "4",
+    "description": "Erhebung der Fremdanamnese und/oder Unterweisung und Führung der Bezugsperson(en)",
+    "points": 220,
+    "base_price_cents": 1282,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  },
+  {
+    "code": "34",
+    "description": "Erörterung (mind. 20 Min.) der Auswirkungen einer Krankheit auf die Lebensgestaltung",
+    "points": 300,
+    "base_price_cents": 1749,
+    "min_factor": 1.0,
+    "max_factor_no_justification": 2.3,
+    "max_factor": 3.5,
+    "common_factors": [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+  }
+]

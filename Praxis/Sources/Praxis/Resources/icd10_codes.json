@@ -1,0 +1,1720 @@
+{
+  "codes": [
+    {
+      "code": "F00.0",
+      "description": "Demenz bei Alzheimer-Krankheit, mit frühem Beginn (Typ 2)"
+    },
+    {
+      "code": "F00.1",
+      "description": "Demenz bei Alzheimer-Krankheit, mit spätem Beginn (Typ 1)"
+    },
+    {
+      "code": "F00.2",
+      "description": "Demenz bei Alzheimer-Krankheit, atypische oder gemischte Form"
+    },
+    {
+      "code": "F00.9",
+      "description": "Demenz bei Alzheimer-Krankheit, nicht näher bezeichnet"
+    },
+    {
+      "code": "F01.0",
+      "description": "Vaskuläre Demenz mit akutem Beginn"
+    },
+    {
+      "code": "F01.1",
+      "description": "Multiinfarkt-Demenz"
+    },
+    {
+      "code": "F01.2",
+      "description": "Subkortikale vaskuläre Demenz"
+    },
+    {
+      "code": "F01.3",
+      "description": "Gemischte kortikale und subkortikale vaskuläre Demenz"
+    },
+    {
+      "code": "F01.8",
+      "description": "Sonstige vaskuläre Demenz"
+    },
+    {
+      "code": "F01.9",
+      "description": "Vaskuläre Demenz, nicht näher bezeichnet"
+    },
+    {
+      "code": "F02.0",
+      "description": "Demenz bei Pick-Krankheit"
+    },
+    {
+      "code": "F02.1",
+      "description": "Demenz bei Creutzfeldt-Jakob-Krankheit"
+    },
+    {
+      "code": "F02.2",
+      "description": "Demenz bei Chorea Huntington"
+    },
+    {
+      "code": "F02.3",
+      "description": "Demenz bei primärem Parkinson-Syndrom"
+    },
+    {
+      "code": "F02.4",
+      "description": "Demenz bei HIV-Krankheit"
+    },
+    {
+      "code": "F02.8",
+      "description": "Demenz bei anderenorts klassifizierten Krankheitsbildern"
+    },
+    {
+      "code": "F03",
+      "description": "Nicht näher bezeichnete Demenz"
+    },
+    {
+      "code": "F04",
+      "description": "Organisches amnestisches Syndrom, nicht durch Alkohol oder andere psychotrope Substanzen bedingt"
+    },
+    {
+      "code": "F05",
+      "description": "Delir, nicht durch Alkohol oder andere psychotrope Substanzen bedingt"
+    },
+    {
+      "code": "F06",
+      "description": "Andere psychische Störungen aufgrund einer Schädigung oder Funktionsstörung des Gehirns"
+    },
+    {
+      "code": "F07",
+      "description": "Persönlichkeits- und Verhaltensstörung aufgrund einer Krankheit, Schädigung oder Funktionsstörung des Gehirns"
+    },
+    {
+      "code": "F09",
+      "description": "Nicht näher bezeichnete organische oder symptomatische psychische Störung"
+    },
+    {
+      "code": "F10.0",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Akute Intoxikation"
+    },
+    {
+      "code": "F10.1",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F10.2",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F10.3",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Entzugssyndrom"
+    },
+    {
+      "code": "F10.4",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F10.5",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Psychotische Störung"
+    },
+    {
+      "code": "F10.6",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Amnestisches Syndrom"
+    },
+    {
+      "code": "F10.7",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F10.8",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F10.9",
+      "description": "Psychische und Verhaltensstörungen durch Alkohol: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F11.0",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Akute Intoxikation"
+    },
+    {
+      "code": "F11.1",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F11.2",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F11.3",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Entzugssyndrom"
+    },
+    {
+      "code": "F11.4",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F11.5",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Psychotische Störung"
+    },
+    {
+      "code": "F11.6",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Amnestisches Syndrom"
+    },
+    {
+      "code": "F11.7",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F11.8",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F11.9",
+      "description": "Psychische und Verhaltensstörungen durch Opioide: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F12.0",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Akute Intoxikation"
+    },
+    {
+      "code": "F12.1",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F12.2",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F12.3",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Entzugssyndrom"
+    },
+    {
+      "code": "F12.4",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F12.5",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Psychotische Störung"
+    },
+    {
+      "code": "F12.6",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Amnestisches Syndrom"
+    },
+    {
+      "code": "F12.7",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F12.8",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F12.9",
+      "description": "Psychische und Verhaltensstörungen durch Cannabinoide: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F13.0",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Akute Intoxikation"
+    },
+    {
+      "code": "F13.1",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F13.2",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F13.3",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Entzugssyndrom"
+    },
+    {
+      "code": "F13.4",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F13.5",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Psychotische Störung"
+    },
+    {
+      "code": "F13.6",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Amnestisches Syndrom"
+    },
+    {
+      "code": "F13.7",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F13.8",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F13.9",
+      "description": "Psychische und Verhaltensstörungen durch Sedativa oder Hypnotika: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F14.0",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Akute Intoxikation"
+    },
+    {
+      "code": "F14.1",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F14.2",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F14.3",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Entzugssyndrom"
+    },
+    {
+      "code": "F14.4",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F14.5",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Psychotische Störung"
+    },
+    {
+      "code": "F14.6",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Amnestisches Syndrom"
+    },
+    {
+      "code": "F14.7",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F14.8",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F14.9",
+      "description": "Psychische und Verhaltensstörungen durch Kokain: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F15.0",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Akute Intoxikation"
+    },
+    {
+      "code": "F15.1",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F15.2",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F15.3",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Entzugssyndrom"
+    },
+    {
+      "code": "F15.4",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F15.5",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Psychotische Störung"
+    },
+    {
+      "code": "F15.6",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Amnestisches Syndrom"
+    },
+    {
+      "code": "F15.7",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F15.8",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F15.9",
+      "description": "Psychische und Verhaltensstörungen durch andere Stimulanzien, einschließlich Koffein: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F16.0",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Akute Intoxikation"
+    },
+    {
+      "code": "F16.1",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F16.2",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F16.3",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Entzugssyndrom"
+    },
+    {
+      "code": "F16.4",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F16.5",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Psychotische Störung"
+    },
+    {
+      "code": "F16.6",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Amnestisches Syndrom"
+    },
+    {
+      "code": "F16.7",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F16.8",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F16.9",
+      "description": "Psychische und Verhaltensstörungen durch Halluzinogene: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F17.0",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Akute Intoxikation"
+    },
+    {
+      "code": "F17.1",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F17.2",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F17.3",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Entzugssyndrom"
+    },
+    {
+      "code": "F17.4",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F17.5",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Psychotische Störung"
+    },
+    {
+      "code": "F17.6",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Amnestisches Syndrom"
+    },
+    {
+      "code": "F17.7",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F17.8",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F17.9",
+      "description": "Psychische und Verhaltensstörungen durch Tabak: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F18.0",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Akute Intoxikation"
+    },
+    {
+      "code": "F18.1",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F18.2",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F18.3",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Entzugssyndrom"
+    },
+    {
+      "code": "F18.4",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F18.5",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Psychotische Störung"
+    },
+    {
+      "code": "F18.6",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Amnestisches Syndrom"
+    },
+    {
+      "code": "F18.7",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F18.8",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F18.9",
+      "description": "Psychische und Verhaltensstörungen durch flüchtige Lösungsmittel: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F19.0",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Akute Intoxikation"
+    },
+    {
+      "code": "F19.1",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Schädlicher Gebrauch"
+    },
+    {
+      "code": "F19.2",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Abhängigkeitssyndrom"
+    },
+    {
+      "code": "F19.3",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Entzugssyndrom"
+    },
+    {
+      "code": "F19.4",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Entzugssyndrom mit Delir"
+    },
+    {
+      "code": "F19.5",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Psychotische Störung"
+    },
+    {
+      "code": "F19.6",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Amnestisches Syndrom"
+    },
+    {
+      "code": "F19.7",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Restzustand und verzögert auftretende psychotische Störung"
+    },
+    {
+      "code": "F19.8",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Sonstige psychische und Verhaltensstörungen"
+    },
+    {
+      "code": "F19.9",
+      "description": "Psychische und Verhaltensstörungen durch multiplen Substanzgebrauch und Konsum anderer psychotroper Substanzen: Nicht näher bezeichnete psychische und Verhaltensstörung"
+    },
+    {
+      "code": "F20.0",
+      "description": "Paranoide Schizophrenie"
+    },
+    {
+      "code": "F20.1",
+      "description": "Hebephrene Schizophrenie"
+    },
+    {
+      "code": "F20.2",
+      "description": "Katatone Schizophrenie"
+    },
+    {
+      "code": "F20.3",
+      "description": "Undifferenzierte Schizophrenie"
+    },
+    {
+      "code": "F20.4",
+      "description": "Postschizophrene Depression"
+    },
+    {
+      "code": "F20.5",
+      "description": "Schizophrenes Residuum"
+    },
+    {
+      "code": "F20.6",
+      "description": "Schizophrenia simplex"
+    },
+    {
+      "code": "F20.8",
+      "description": "Sonstige Schizophrenie"
+    },
+    {
+      "code": "F20.9",
+      "description": "Schizophrenie, nicht näher bezeichnet"
+    },
+    {
+      "code": "F21",
+      "description": "Schizotype Störung"
+    },
+    {
+      "code": "F22.0",
+      "description": "Wahnhafte Störung"
+    },
+    {
+      "code": "F22.8",
+      "description": "Sonstige anhaltende wahnhafte Störungen"
+    },
+    {
+      "code": "F22.9",
+      "description": "Anhaltende wahnhafte Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F23.0",
+      "description": "Akute polymorphe psychotische Störung ohne Symptome einer Schizophrenie"
+    },
+    {
+      "code": "F23.1",
+      "description": "Akute polymorphe psychotische Störung mit Symptomen einer Schizophrenie"
+    },
+    {
+      "code": "F23.2",
+      "description": "Akute schizophreniforme psychotische Störung"
+    },
+    {
+      "code": "F23.3",
+      "description": "Sonstige akute vorwiegend wahnhafte psychotische Störungen"
+    },
+    {
+      "code": "F23.8",
+      "description": "Sonstige akute vorübergehende psychotische Störungen"
+    },
+    {
+      "code": "F23.9",
+      "description": "Akute vorübergehende psychotische Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F24",
+      "description": "Induzierte wahnhafte Störung"
+    },
+    {
+      "code": "F25.0",
+      "description": "Schizoaffektive Störung, gegenwärtig manisch"
+    },
+    {
+      "code": "F25.1",
+      "description": "Schizoaffektive Störung, gegenwärtig depressiv"
+    },
+    {
+      "code": "F25.2",
+      "description": "Gemischte schizoaffektive Störung"
+    },
+    {
+      "code": "F25.8",
+      "description": "Sonstige schizoaffektive Störungen"
+    },
+    {
+      "code": "F25.9",
+      "description": "Schizoaffektive Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F28",
+      "description": "Sonstige nichtorganische psychotische Störungen"
+    },
+    {
+      "code": "F29",
+      "description": "Nicht näher bezeichnete nichtorganische Psychose"
+    },
+    {
+      "code": "F30.0",
+      "description": "Hypomanie"
+    },
+    {
+      "code": "F30.1",
+      "description": "Manie ohne psychotische Symptome"
+    },
+    {
+      "code": "F30.2",
+      "description": "Manie mit psychotischen Symptomen"
+    },
+    {
+      "code": "F30.8",
+      "description": "Sonstige manische Episoden"
+    },
+    {
+      "code": "F30.9",
+      "description": "Manische Episode, nicht näher bezeichnet"
+    },
+    {
+      "code": "F31.0",
+      "description": "Bipolare affektive Störung, gegenwärtig hypomanische Episode"
+    },
+    {
+      "code": "F31.1",
+      "description": "Bipolare affektive Störung, gegenwärtig manische Episode ohne psychotische Symptome"
+    },
+    {
+      "code": "F31.2",
+      "description": "Bipolare affektive Störung, gegenwärtig manische Episode mit psychotischen Symptomen"
+    },
+    {
+      "code": "F31.3",
+      "description": "Bipolare affektive Störung, gegenwärtig leichte oder mittelgradige depressive Episode"
+    },
+    {
+      "code": "F31.4",
+      "description": "Bipolare affektive Störung, gegenwärtig schwere depressive Episode ohne psychotische Symptome"
+    },
+    {
+      "code": "F31.5",
+      "description": "Bipolare affektive Störung, gegenwärtig schwere depressive Episode mit psychotischen Symptomen"
+    },
+    {
+      "code": "F31.6",
+      "description": "Bipolare affektive Störung, gegenwärtig gemischte Episode"
+    },
+    {
+      "code": "F31.7",
+      "description": "Bipolare affektive Störung, gegenwärtig remittiert"
+    },
+    {
+      "code": "F31.8",
+      "description": "Sonstige bipolare affektive Störungen"
+    },
+    {
+      "code": "F31.9",
+      "description": "Bipolare affektive Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F32.0",
+      "description": "Leichte depressive Episode"
+    },
+    {
+      "code": "F32.1",
+      "description": "Mittelgradige depressive Episode"
+    },
+    {
+      "code": "F32.2",
+      "description": "Schwere depressive Episode ohne psychotische Symptome"
+    },
+    {
+      "code": "F32.3",
+      "description": "Schwere depressive Episode mit psychotischen Symptomen"
+    },
+    {
+      "code": "F32.8",
+      "description": "Sonstige depressive Episoden"
+    },
+    {
+      "code": "F32.9",
+      "description": "Depressive Episode, nicht näher bezeichnet"
+    },
+    {
+      "code": "F33.0",
+      "description": "Rezidivierende depressive Störung, gegenwärtig leichte Episode"
+    },
+    {
+      "code": "F33.1",
+      "description": "Rezidivierende depressive Störung, gegenwärtig mittelgradige Episode"
+    },
+    {
+      "code": "F33.2",
+      "description": "Rezidivierende depressive Störung, gegenwärtig schwere Episode ohne psychotische Symptome"
+    },
+    {
+      "code": "F33.3",
+      "description": "Rezidivierende depressive Störung, gegenwärtig schwere Episode mit psychotischen Symptomen"
+    },
+    {
+      "code": "F33.4",
+      "description": "Rezidivierende depressive Störung, gegenwärtig remittiert"
+    },
+    {
+      "code": "F33.8",
+      "description": "Sonstige rezidivierende depressive Störungen"
+    },
+    {
+      "code": "F33.9",
+      "description": "Rezidivierende depressive Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F34.0",
+      "description": "Zyklothymia"
+    },
+    {
+      "code": "F34.1",
+      "description": "Dysthymia"
+    },
+    {
+      "code": "F34.8",
+      "description": "Sonstige anhaltende affektive Störungen"
+    },
+    {
+      "code": "F34.9",
+      "description": "Anhaltende affektive Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F38.0",
+      "description": "Andere einzelne affektive Störungen"
+    },
+    {
+      "code": "F38.1",
+      "description": "Andere rezidivierende affektive Störungen"
+    },
+    {
+      "code": "F38.8",
+      "description": "Sonstige näher bezeichnete affektive Störungen"
+    },
+    {
+      "code": "F39",
+      "description": "Nicht näher bezeichnete affektive Störung"
+    },
+    {
+      "code": "F40.00",
+      "description": "Agoraphobie: Ohne Angabe einer Panikstörung"
+    },
+    {
+      "code": "F40.01",
+      "description": "Agoraphobie: Mit Panikstörung"
+    },
+    {
+      "code": "F40.1",
+      "description": "Soziale Phobien"
+    },
+    {
+      "code": "F40.2",
+      "description": "Spezifische (isolierte) Phobien"
+    },
+    {
+      "code": "F40.8",
+      "description": "Sonstige phobische Störungen"
+    },
+    {
+      "code": "F40.9",
+      "description": "Phobische Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F41.0",
+      "description": "Panikstörung [episodisch paroxysmale Angst]"
+    },
+    {
+      "code": "F41.1",
+      "description": "Generalisierte Angststörung"
+    },
+    {
+      "code": "F41.2",
+      "description": "Angst und depressive Störung, gemischt"
+    },
+    {
+      "code": "F41.3",
+      "description": "Andere gemischte Angststörungen"
+    },
+    {
+      "code": "F41.8",
+      "description": "Sonstige spezifische Angststörungen"
+    },
+    {
+      "code": "F41.9",
+      "description": "Angststörung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F42.0",
+      "description": "Vorwiegend Zwangsgedanken oder Grübelzwang"
+    },
+    {
+      "code": "F42.1",
+      "description": "Vorwiegend Zwangshandlungen [Zwangsrituale]"
+    },
+    {
+      "code": "F42.2",
+      "description": "Zwangsgedanken und -handlungen, gemischt"
+    },
+    {
+      "code": "F42.8",
+      "description": "Sonstige Zwangsstörungen"
+    },
+    {
+      "code": "F42.9",
+      "description": "Zwangsstörung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F43.0",
+      "description": "Akute Belastungsreaktion"
+    },
+    {
+      "code": "F43.1",
+      "description": "Posttraumatische Belastungsstörung"
+    },
+    {
+      "code": "F43.2",
+      "description": "Anpassungsstörungen"
+    },
+    {
+      "code": "F43.8",
+      "description": "Sonstige Reaktionen auf schwere Belastung"
+    },
+    {
+      "code": "F43.9",
+      "description": "Reaktion auf schwere Belastung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F44.0",
+      "description": "Dissoziative Amnesie"
+    },
+    {
+      "code": "F44.1",
+      "description": "Dissoziative Fugue"
+    },
+    {
+      "code": "F44.2",
+      "description": "Dissoziativer Stupor"
+    },
+    {
+      "code": "F44.3",
+      "description": "Trance- und Besessenheitszustände"
+    },
+    {
+      "code": "F44.4",
+      "description": "Dissoziative Bewegungsstörungen"
+    },
+    {
+      "code": "F44.5",
+      "description": "Dissoziative Krampfanfälle"
+    },
+    {
+      "code": "F44.6",
+      "description": "Dissoziative Sensibilitäts- und Empfindungsstörungen"
+    },
+    {
+      "code": "F44.7",
+      "description": "Dissoziative Störungen [Konversionsstörungen], gemischt"
+    },
+    {
+      "code": "F44.80",
+      "description": "Ganser-Syndrom"
+    },
+    {
+      "code": "F44.81",
+      "description": "Multiple Persönlichkeit(sstörung)"
+    },
+    {
+      "code": "F44.82",
+      "description": "Transitorische dissoziative Störungen [Konversionsstörungen] in Kindheit und Jugend"
+    },
+    {
+      "code": "F44.88",
+      "description": "Sonstige dissoziative Störungen [Konversionsstörungen]"
+    },
+    {
+      "code": "F44.9",
+      "description": "Dissoziative Störung [Konversionsstörung], nicht näher bezeichnet"
+    },
+    {
+      "code": "F45.0",
+      "description": "Somatisierungsstörung"
+    },
+    {
+      "code": "F45.1",
+      "description": "Undifferenzierte Somatisierungsstörung"
+    },
+    {
+      "code": "F45.2",
+      "description": "Hypochondrische Störung"
+    },
+    {
+      "code": "F45.30",
+      "description": "Somatoforme autonome Funktionsstörung: Herz und Kreislaufsystem"
+    },
+    {
+      "code": "F45.31",
+      "description": "Somatoforme autonome Funktionsstörung: Oberes Verdauungssystem"
+    },
+    {
+      "code": "F45.32",
+      "description": "Somatoforme autonome Funktionsstörung: Unteres Verdauungssystem"
+    },
+    {
+      "code": "F45.33",
+      "description": "Somatoforme autonome Funktionsstörung: Atmungssystem"
+    },
+    {
+      "code": "F45.34",
+      "description": "Somatoforme autonome Funktionsstörung: Urogenitalsystem"
+    },
+    {
+      "code": "F45.37",
+      "description": "Somatoforme autonome Funktionsstörung: Mehrere Organe und Systeme"
+    },
+    {
+      "code": "F45.38",
+      "description": "Somatoforme autonome Funktionsstörung: Sonstige Organe und Systeme"
+    },
+    {
+      "code": "F45.39",
+      "description": "Somatoforme autonome Funktionsstörung: Nicht näher bezeichnetes Organ oder System"
+    },
+    {
+      "code": "F45.40",
+      "description": "Anhaltende somatoforme Schmerzstörung"
+    },
+    {
+      "code": "F45.41",
+      "description": "Chronische Schmerzstörung mit somatischen und psychischen Faktoren"
+    },
+    {
+      "code": "F45.8",
+      "description": "Sonstige somatoforme Störungen"
+    },
+    {
+      "code": "F45.9",
+      "description": "Somatoforme Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F48.0",
+      "description": "Neurasthenie"
+    },
+    {
+      "code": "F48.1",
+      "description": "Depersonalisations- und Derealisationssyndrom"
+    },
+    {
+      "code": "F48.8",
+      "description": "Sonstige neurotische Störungen"
+    },
+    {
+      "code": "F48.9",
+      "description": "Neurotische Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F50.00",
+      "description": "Anorexia nervosa, restriktiver Typ"
+    },
+    {
+      "code": "F50.01",
+      "description": "Anorexia nervosa, aktiver Typ"
+    },
+    {
+      "code": "F50.08",
+      "description": "Sonstige und nicht näher bezeichnete Anorexia nervosa"
+    },
+    {
+      "code": "F50.1",
+      "description": "Atypische Anorexia nervosa"
+    },
+    {
+      "code": "F50.2",
+      "description": "Bulimia nervosa"
+    },
+    {
+      "code": "F50.3",
+      "description": "Atypische Bulimia nervosa"
+    },
+    {
+      "code": "F50.4",
+      "description": "Essattacken bei anderen psychischen Störungen"
+    },
+    {
+      "code": "F50.5",
+      "description": "Erbrechen bei anderen psychischen Störungen"
+    },
+    {
+      "code": "F50.8",
+      "description": "Sonstige Essstörungen"
+    },
+    {
+      "code": "F50.9",
+      "description": "Essstörung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F51.0",
+      "description": "Nichtorganische Insomnie"
+    },
+    {
+      "code": "F51.1",
+      "description": "Nichtorganische Hypersomnie"
+    },
+    {
+      "code": "F51.2",
+      "description": "Nichtorganische Störung des Schlaf-Wach-Rhythmus"
+    },
+    {
+      "code": "F51.3",
+      "description": "Schlafwandeln [Somnambulismus]"
+    },
+    {
+      "code": "F51.4",
+      "description": "Pavor nocturnus"
+    },
+    {
+      "code": "F51.5",
+      "description": "Albträume [Angstträume]"
+    },
+    {
+      "code": "F51.8",
+      "description": "Sonstige nichtorganische Schlafstörungen"
+    },
+    {
+      "code": "F51.9",
+      "description": "Nichtorganische Schlafstörung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F52.0",
+      "description": "Mangel oder Verlust von sexuellem Verlangen"
+    },
+    {
+      "code": "F52.1",
+      "description": "Sexuelle Aversion und mangelnde sexuelle Befriedigung"
+    },
+    {
+      "code": "F52.2",
+      "description": "Versagen genitaler Reaktionen"
+    },
+    {
+      "code": "F52.3",
+      "description": "Orgasmusstörung"
+    },
+    {
+      "code": "F52.4",
+      "description": "Ejaculatio praecox"
+    },
+    {
+      "code": "F52.5",
+      "description": "Nichtorganischer Vaginismus"
+    },
+    {
+      "code": "F52.6",
+      "description": "Nichtorganische Dyspareunie"
+    },
+    {
+      "code": "F52.7",
+      "description": "Gesteigertes sexuelles Verlangen"
+    },
+    {
+      "code": "F52.8",
+      "description": "Sonstige sexuelle Funktionsstörungen"
+    },
+    {
+      "code": "F52.9",
+      "description": "Nicht näher bezeichnete sexuelle Funktionsstörung"
+    },
+    {
+      "code": "F53.0",
+      "description": "Leichte psychische und Verhaltensstörungen im Wochenbett"
+    },
+    {
+      "code": "F53.1",
+      "description": "Schwere psychische und Verhaltensstörungen im Wochenbett"
+    },
+    {
+      "code": "F53.8",
+      "description": "Sonstige psychische und Verhaltensstörungen im Wochenbett"
+    },
+    {
+      "code": "F53.9",
+      "description": "Psychische Störung im Wochenbett, nicht näher bezeichnet"
+    },
+    {
+      "code": "F54",
+      "description": "Psychologische Faktoren bei anderenorts klassifizierten Krankheiten"
+    },
+    {
+      "code": "F55.0",
+      "description": "Schädlicher Gebrauch von nichtabhängigkeitserzeugenden Substanzen: Antidepressiva"
+    },
+    {
+      "code": "F55.1",
+      "description": "Schädlicher Gebrauch von nichtabhängigkeitserzeugenden Substanzen: Laxanzien"
+    },
+    {
+      "code": "F55.2",
+      "description": "Schädlicher Gebrauch von nichtabhängigkeitserzeugenden Substanzen: Analgetika"
+    },
+    {
+      "code": "F55.3",
+      "description": "Schädlicher Gebrauch von nichtabhängigkeitserzeugenden Substanzen: Antazida"
+    },
+    {
+      "code": "F55.4",
+      "description": "Schädlicher Gebrauch von nichtabhängigkeitserzeugenden Substanzen: Vitamine"
+    },
+    {
+      "code": "F55.5",
+      "description": "Schädlicher Gebrauch von nichtabhängigkeitserzeugenden Substanzen: Steroide und Hormone"
+    },
+    {
+      "code": "F55.6",
+      "description": "Schädlicher Gebrauch von nichtabhängigkeitserzeugenden Substanzen: Pflanzen oder Naturheilmittel"
+    },
+    {
+      "code": "F55.8",
+      "description": "Schädlicher Gebrauch von nichtabhängigkeitserzeugenden Substanzen: Sonstige Substanzen"
+    },
+    {
+      "code": "F55.9",
+      "description": "Schädlicher Gebrauch von nichtabhängigkeitserzeugenden Substanzen: Nicht näher bezeichnete Substanz"
+    },
+    {
+      "code": "F59",
+      "description": "Nicht näher bezeichnete Verhaltensauffälligkeiten bei körperlichen Störungen und Faktoren"
+    },
+    {
+      "code": "F60.0",
+      "description": "Paranoide Persönlichkeitsstörung"
+    },
+    {
+      "code": "F60.1",
+      "description": "Schizoide Persönlichkeitsstörung"
+    },
+    {
+      "code": "F60.2",
+      "description": "Dissoziale Persönlichkeitsstörung"
+    },
+    {
+      "code": "F60.30",
+      "description": "Emotional instabile Persönlichkeitsstörung: Impulsiver Typ"
+    },
+    {
+      "code": "F60.31",
+      "description": "Emotional instabile Persönlichkeitsstörung: Borderline-Typ"
+    },
+    {
+      "code": "F60.4",
+      "description": "Histrionische Persönlichkeitsstörung"
+    },
+    {
+      "code": "F60.5",
+      "description": "Anankastische [zwanghafte] Persönlichkeitsstörung"
+    },
+    {
+      "code": "F60.6",
+      "description": "Ängstliche (vermeidende) Persönlichkeitsstörung"
+    },
+    {
+      "code": "F60.7",
+      "description": "Abhängige (asthenische) Persönlichkeitsstörung"
+    },
+    {
+      "code": "F60.8",
+      "description": "Sonstige spezifische Persönlichkeitsstörungen"
+    },
+    {
+      "code": "F60.9",
+      "description": "Persönlichkeitsstörung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F61",
+      "description": "Kombinierte und andere Persönlichkeitsstörungen"
+    },
+    {
+      "code": "F62.0",
+      "description": "Andauernde Persönlichkeitsänderung nach Extrembelastung"
+    },
+    {
+      "code": "F62.1",
+      "description": "Andauernde Persönlichkeitsänderung nach psychischer Krankheit"
+    },
+    {
+      "code": "F62.80",
+      "description": "Andauernde Persönlichkeitsänderung bei chronischem Schmerzsyndrom"
+    },
+    {
+      "code": "F62.88",
+      "description": "Sonstige andauernde Persönlichkeitsänderungen"
+    },
+    {
+      "code": "F62.9",
+      "description": "Andauernde Persönlichkeitsänderung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F63.0",
+      "description": "Pathologisches Spielen"
+    },
+    {
+      "code": "F63.1",
+      "description": "Pathologische Brandstiftung [Pyromanie]"
+    },
+    {
+      "code": "F63.2",
+      "description": "Pathologisches Stehlen [Kleptomanie]"
+    },
+    {
+      "code": "F63.3",
+      "description": "Trichotillomanie"
+    },
+    {
+      "code": "F63.8",
+      "description": "Sonstige abnorme Gewohnheiten und Störungen der Impulskontrolle"
+    },
+    {
+      "code": "F63.9",
+      "description": "Abnorme Gewohnheit und Störung der Impulskontrolle, nicht näher bezeichnet"
+    },
+    {
+      "code": "F64.0",
+      "description": "Transsexualismus"
+    },
+    {
+      "code": "F64.1",
+      "description": "Transvestitismus unter Beibehaltung beider Geschlechtsrollen"
+    },
+    {
+      "code": "F64.2",
+      "description": "Störung der Geschlechtsidentität des Kindesalters"
+    },
+    {
+      "code": "F64.8",
+      "description": "Sonstige Störungen der Geschlechtsidentität"
+    },
+    {
+      "code": "F64.9",
+      "description": "Störung der Geschlechtsidentität, nicht näher bezeichnet"
+    },
+    {
+      "code": "F65.0",
+      "description": "Fetischismus"
+    },
+    {
+      "code": "F65.1",
+      "description": "Fetischistischer Transvestitismus"
+    },
+    {
+      "code": "F65.2",
+      "description": "Exhibitionismus"
+    },
+    {
+      "code": "F65.3",
+      "description": "Voyeurismus"
+    },
+    {
+      "code": "F65.4",
+      "description": "Pädophilie"
+    },
+    {
+      "code": "F65.5",
+      "description": "Sadomasochismus"
+    },
+    {
+      "code": "F65.6",
+      "description": "Multiple Störungen der Sexualpräferenz"
+    },
+    {
+      "code": "F65.8",
+      "description": "Sonstige Störungen der Sexualpräferenz"
+    },
+    {
+      "code": "F65.9",
+      "description": "Störung der Sexualpräferenz, nicht näher bezeichnet"
+    },
+    {
+      "code": "F66.0",
+      "description": "Sexuelle Reifungskrise"
+    },
+    {
+      "code": "F66.1",
+      "description": "Ichdystone Sexualorientierung"
+    },
+    {
+      "code": "F66.2",
+      "description": "Sexuelle Beziehungsstörung"
+    },
+    {
+      "code": "F66.8",
+      "description": "Sonstige psychische und Verhaltensstörungen in Verbindung mit der sexuellen Entwicklung und Orientierung"
+    },
+    {
+      "code": "F66.9",
+      "description": "Psychische und Verhaltensstörung in Verbindung mit der sexuellen Entwicklung und Orientierung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F68.0",
+      "description": "Entwicklung körperlicher Symptome aus psychischen Gründen"
+    },
+    {
+      "code": "F68.1",
+      "description": "Artifizielle Störung"
+    },
+    {
+      "code": "F68.8",
+      "description": "Sonstige näher bezeichnete Persönlichkeits- und Verhaltensstörungen"
+    },
+    {
+      "code": "F69",
+      "description": "Nicht näher bezeichnete Persönlichkeits- und Verhaltensstörung"
+    },
+    {
+      "code": "F70.0",
+      "description": "Leichte Intelligenzminderung: Keine oder geringfügige Verhaltensstörung"
+    },
+    {
+      "code": "F70.1",
+      "description": "Leichte Intelligenzminderung: Deutliche Verhaltensstörung, die Beobachtung oder Behandlung erfordert"
+    },
+    {
+      "code": "F70.8",
+      "description": "Leichte Intelligenzminderung: Sonstige Verhaltensstörung"
+    },
+    {
+      "code": "F70.9",
+      "description": "Leichte Intelligenzminderung: Ohne Angabe einer Verhaltensstörung"
+    },
+    {
+      "code": "F71.0",
+      "description": "Mittelgradige Intelligenzminderung: Keine oder geringfügige Verhaltensstörung"
+    },
+    {
+      "code": "F71.1",
+      "description": "Mittelgradige Intelligenzminderung: Deutliche Verhaltensstörung, die Beobachtung oder Behandlung erfordert"
+    },
+    {
+      "code": "F71.8",
+      "description": "Mittelgradige Intelligenzminderung: Sonstige Verhaltensstörung"
+    },
+    {
+      "code": "F71.9",
+      "description": "Mittelgradige Intelligenzminderung: Ohne Angabe einer Verhaltensstörung"
+    },
+    {
+      "code": "F72.0",
+      "description": "Schwere Intelligenzminderung: Keine oder geringfügige Verhaltensstörung"
+    },
+    {
+      "code": "F72.1",
+      "description": "Schwere Intelligenzminderung: Deutliche Verhaltensstörung, die Beobachtung oder Behandlung erfordert"
+    },
+    {
+      "code": "F72.8",
+      "description": "Schwere Intelligenzminderung: Sonstige Verhaltensstörung"
+    },
+    {
+      "code": "F72.9",
+      "description": "Schwere Intelligenzminderung: Ohne Angabe einer Verhaltensstörung"
+    },
+    {
+      "code": "F73.0",
+      "description": "Schwerste Intelligenzminderung: Keine oder geringfügige Verhaltensstörung"
+    },
+    {
+      "code": "F73.1",
+      "description": "Schwerste Intelligenzminderung: Deutliche Verhaltensstörung, die Beobachtung oder Behandlung erfordert"
+    },
+    {
+      "code": "F73.8",
+      "description": "Schwerste Intelligenzminderung: Sonstige Verhaltensstörung"
+    },
+    {
+      "code": "F73.9",
+      "description": "Schwerste Intelligenzminderung: Ohne Angabe einer Verhaltensstörung"
+    },
+    {
+      "code": "F74.0",
+      "description": "Dissoziierte Intelligenz: Keine oder geringfügige Verhaltensstörung"
+    },
+    {
+      "code": "F74.1",
+      "description": "Dissoziierte Intelligenz: Deutliche Verhaltensstörung, die Beobachtung oder Behandlung erfordert"
+    },
+    {
+      "code": "F74.8",
+      "description": "Dissoziierte Intelligenz: Sonstige Verhaltensstörung"
+    },
+    {
+      "code": "F74.9",
+      "description": "Dissoziierte Intelligenz: Ohne Angabe einer Verhaltensstörung"
+    },
+    {
+      "code": "F78.0",
+      "description": "Andere Intelligenzminderung: Keine oder geringfügige Verhaltensstörung"
+    },
+    {
+      "code": "F78.1",
+      "description": "Andere Intelligenzminderung: Deutliche Verhaltensstörung, die Beobachtung oder Behandlung erfordert"
+    },
+    {
+      "code": "F78.8",
+      "description": "Andere Intelligenzminderung: Sonstige Verhaltensstörung"
+    },
+    {
+      "code": "F78.9",
+      "description": "Andere Intelligenzminderung: Ohne Angabe einer Verhaltensstörung"
+    },
+    {
+      "code": "F79.0",
+      "description": "Nicht näher bezeichnete Intelligenzminderung: Keine oder geringfügige Verhaltensstörung"
+    },
+    {
+      "code": "F79.1",
+      "description": "Nicht näher bezeichnete Intelligenzminderung: Deutliche Verhaltensstörung, die Beobachtung oder Behandlung erfordert"
+    },
+    {
+      "code": "F79.8",
+      "description": "Nicht näher bezeichnete Intelligenzminderung: Sonstige Verhaltensstörung"
+    },
+    {
+      "code": "F79.9",
+      "description": "Nicht näher bezeichnete Intelligenzminderung: Ohne Angabe einer Verhaltensstörung"
+    },
+    {
+      "code": "F80.0",
+      "description": "Artikulationsstörung"
+    },
+    {
+      "code": "F80.1",
+      "description": "Expressive Sprachstörung"
+    },
+    {
+      "code": "F80.20",
+      "description": "Auditive Verarbeitungs- und Wahrnehmungsstörung [AVWS]"
+    },
+    {
+      "code": "F80.28",
+      "description": "Sonstige rezeptive Sprachstörung"
+    },
+    {
+      "code": "F80.3",
+      "description": "Erworbene Aphasie mit Epilepsie [Landau-Kleffner-Syndrom]"
+    },
+    {
+      "code": "F80.8",
+      "description": "Sonstige Entwicklungsstörungen des Sprechens oder der Sprache"
+    },
+    {
+      "code": "F80.9",
+      "description": "Entwicklungsstörung des Sprechens oder der Sprache, nicht näher bezeichnet"
+    },
+    {
+      "code": "F81.0",
+      "description": "Lese- und Rechtschreibstörung"
+    },
+    {
+      "code": "F81.1",
+      "description": "Isolierte Rechtschreibstörung"
+    },
+    {
+      "code": "F81.2",
+      "description": "Rechenstörung"
+    },
+    {
+      "code": "F81.3",
+      "description": "Kombinierte Störungen schulischer Fertigkeiten"
+    },
+    {
+      "code": "F81.8",
+      "description": "Sonstige Entwicklungsstörungen schulischer Fertigkeiten"
+    },
+    {
+      "code": "F81.9",
+      "description": "Entwicklungsstörung schulischer Fertigkeiten, nicht näher bezeichnet"
+    },
+    {
+      "code": "F82.0",
+      "description": "Umschriebene Entwicklungsstörung der Grobmotorik"
+    },
+    {
+      "code": "F82.1",
+      "description": "Umschriebene Entwicklungsstörung der Fein- und Graphomotorik"
+    },
+    {
+      "code": "F82.2",
+      "description": "Umschriebene Entwicklungsstörung der Mundmotorik"
+    },
+    {
+      "code": "F82.9",
+      "description": "Umschriebene Entwicklungsstörung der motorischen Funktionen, nicht näher bezeichnet"
+    },
+    {
+      "code": "F83",
+      "description": "Kombinierte umschriebene Entwicklungsstörungen"
+    },
+    {
+      "code": "F84.0",
+      "description": "Frühkindlicher Autismus"
+    },
+    {
+      "code": "F84.1",
+      "description": "Atypischer Autismus"
+    },
+    {
+      "code": "F84.2",
+      "description": "Rett-Syndrom"
+    },
+    {
+      "code": "F84.3",
+      "description": "Andere desintegrative Störung des Kindesalters"
+    },
+    {
+      "code": "F84.4",
+      "description": "Überaktive Störung mit Intelligenzminderung und Bewegungsstereotypien"
+    },
+    {
+      "code": "F84.5",
+      "description": "Asperger-Syndrom"
+    },
+    {
+      "code": "F84.8",
+      "description": "Sonstige tief greifende Entwicklungsstörungen"
+    },
+    {
+      "code": "F84.9",
+      "description": "Tief greifende Entwicklungsstörung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F88",
+      "description": "Andere Entwicklungsstörungen"
+    },
+    {
+      "code": "F89",
+      "description": "Nicht näher bezeichnete Entwicklungsstörung"
+    },
+    {
+      "code": "F90.0",
+      "description": "Einfache Aktivitäts- und Aufmerksamkeitsstörung"
+    },
+    {
+      "code": "F90.1",
+      "description": "Hyperkinetische Störung des Sozialverhaltens"
+    },
+    {
+      "code": "F90.8",
+      "description": "Sonstige hyperkinetische Störungen"
+    },
+    {
+      "code": "F90.9",
+      "description": "Hyperkinetische Störung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F91.0",
+      "description": "Auf den familiären Rahmen beschränkte Störung des Sozialverhaltens"
+    },
+    {
+      "code": "F91.1",
+      "description": "Störung des Sozialverhaltens bei fehlenden sozialen Bindungen"
+    },
+    {
+      "code": "F91.2",
+      "description": "Störung des Sozialverhaltens bei vorhandenen sozialen Bindungen"
+    },
+    {
+      "code": "F91.3",
+      "description": "Störung des Sozialverhaltens mit oppositionellem, aufsässigem Verhalten"
+    },
+    {
+      "code": "F91.8",
+      "description": "Sonstige Störungen des Sozialverhaltens"
+    },
+    {
+      "code": "F91.9",
+      "description": "Störung des Sozialverhaltens, nicht näher bezeichnet"
+    },
+    {
+      "code": "F92.0",
+      "description": "Störung des Sozialverhaltens mit depressiver Störung"
+    },
+    {
+      "code": "F92.8",
+      "description": "Sonstige kombinierte Störung des Sozialverhaltens und der Emotionen"
+    },
+    {
+      "code": "F92.9",
+      "description": "Kombinierte Störung des Sozialverhaltens und der Emotionen, nicht näher bezeichnet"
+    },
+    {
+      "code": "F93.0",
+      "description": "Emotionale Störung mit Trennungsangst des Kindesalters"
+    },
+    {
+      "code": "F93.1",
+      "description": "Phobische Störung des Kindesalters"
+    },
+    {
+      "code": "F93.2",
+      "description": "Störung mit sozialer Ängstlichkeit des Kindesalters"
+    },
+    {
+      "code": "F93.3",
+      "description": "Emotionale Störung mit Geschwisterrivalität"
+    },
+    {
+      "code": "F93.8",
+      "description": "Sonstige emotionale Störungen des Kindesalters"
+    },
+    {
+      "code": "F93.9",
+      "description": "Emotionale Störung des Kindesalters, nicht näher bezeichnet"
+    },
+    {
+      "code": "F94.0",
+      "description": "Elektiver Mutismus"
+    },
+    {
+      "code": "F94.1",
+      "description": "Reaktive Bindungsstörung des Kindesalters"
+    },
+    {
+      "code": "F94.2",
+      "description": "Bindungsstörung des Kindesalters mit Enthemmung"
+    },
+    {
+      "code": "F94.8",
+      "description": "Sonstige Störungen sozialer Funktionen mit Beginn in der Kindheit"
+    },
+    {
+      "code": "F94.9",
+      "description": "Störung sozialer Funktionen mit Beginn in der Kindheit, nicht näher bezeichnet"
+    },
+    {
+      "code": "F95.0",
+      "description": "Vorübergehende Ticstörung"
+    },
+    {
+      "code": "F95.1",
+      "description": "Chronische motorische oder vokale Ticstörung"
+    },
+    {
+      "code": "F95.2",
+      "description": "Kombinierte vokale und multiple motorische Tics [Tourette-Syndrom]"
+    },
+    {
+      "code": "F95.8",
+      "description": "Sonstige Ticstörungen"
+    },
+    {
+      "code": "F95.9",
+      "description": "Ticstörung, nicht näher bezeichnet"
+    },
+    {
+      "code": "F98.00",
+      "description": "Enuresis nocturna"
+    },
+    {
+      "code": "F98.01",
+      "description": "Enuresis diurna"
+    },
+    {
+      "code": "F98.02",
+      "description": "Enuresis nocturna et diurna"
+    },
+    {
+      "code": "F98.08",
+      "description": "Sonstige und nicht näher bezeichnete nichtorganische Enuresis"
+    },
+    {
+      "code": "F98.1",
+      "description": "Nichtorganische Enkopresis"
+    },
+    {
+      "code": "F98.2",
+      "description": "Fütterstörung im frühen Kindesalter"
+    },
+    {
+      "code": "F98.3",
+      "description": "Pica im Kindesalter"
+    },
+    {
+      "code": "F98.40",
+      "description": "Stereotype Bewegungsstörungen ohne Selbstverletzung"
+    },
+    {
+      "code": "F98.41",
+      "description": "Stereotype Bewegungsstörungen mit Selbstverletzung"
+    },
+    {
+      "code": "F98.49",
+      "description": "Stereotype Bewegungsstörungen ohne Angabe einer Selbstverletzung"
+    },
+    {
+      "code": "F98.5",
+      "description": "Stottern [Stammeln]"
+    },
+    {
+      "code": "F98.6",
+      "description": "Poltern"
+    },
+    {
+      "code": "F98.80",
+      "description": "Aufmerksamkeitsstörung ohne Hyperaktivität mit Beginn in der Kindheit und Jugend"
+    },
+    {
+      "code": "F98.88",
+      "description": "Sonstige näher bezeichnete Verhaltens- und emotionale Störungen mit Beginn in der Kindheit und Jugend"
+    },
+    {
+      "code": "F98.9",
+      "description": "Nicht näher bezeichnete Verhaltens- oder emotionale Störungen mit Beginn in der Kindheit und Jugend"
+    },
+    {
+      "code": "F99",
+      "description": "Psychische Störung ohne nähere Angabe"
+    }
+  ]
+}

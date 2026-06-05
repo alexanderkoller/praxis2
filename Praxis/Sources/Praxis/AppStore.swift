@@ -35,6 +35,10 @@ final class AppStore {
     var selectedDocumentCategory: DocumentCategory? = nil
     var installedQuestionnaires: [FHIRQuestionnaire] = []
     var selectedQuestionnaireID: String = ""
+    var icdCatalog: [ICDCode] = []
+    var gopCatalog: [GOPCatalogEntry] = []
+    var medicationCatalog: [ClinicalChoice] = []
+    var priorTreatmentCatalog: [ClinicalChoice] = []
     var draftAppointment = AppointmentDraft()
     var selectedQuestionnaireResult: QuestionnaireResultRecord? = nil
     var qrSession: QRSession? = nil
@@ -50,6 +54,7 @@ final class AppStore {
         self.selectedAppointmentID = patient.appointments.first?.id
         self.selectedSessionID = patient.sessions.first?.id
         loadQuestionnaires()
+        loadClinicalCatalogs()
     }
 
     var selectedPatientIndex: Int {
@@ -163,9 +168,13 @@ final class AppStore {
         mutate(&patients[selectedPatientIndex].sessions[index])
     }
 
-    func addDiagnosis() {
+    func addDiagnosis(code: String, name: String, statusText: String = "gesichert", since: String = "2026") {
+        let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCode.isEmpty, !trimmedName.isEmpty else { return }
+        guard !selectedPatient.diagnoses.contains(where: { $0.code == trimmedCode }) else { return }
         updateSelectedPatient {
-            $0.diagnoses.append(Diagnosis(code: "F32.0", name: "Leichte depressive Episode", statusText: "Verdachtsdiagnose", since: "2026"))
+            $0.diagnoses.append(Diagnosis(code: trimmedCode, name: trimmedName, statusText: statusText, since: since))
         }
     }
 
@@ -185,9 +194,11 @@ final class AppStore {
         }
     }
 
-    func addMedication() {
+    func addMedication(name: String, dose: String, frequency: String, since: String = "Heute") {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
         updateSelectedPatient {
-            $0.medications.append(Medication(name: "Neues Medikament", dose: "10 mg", frequency: "1× täglich", since: "Heute"))
+            $0.medications.append(Medication(name: trimmedName, dose: dose, frequency: frequency, since: since))
         }
     }
 
@@ -197,15 +208,31 @@ final class AppStore {
         }
     }
 
-    func addPriorTreatment() {
+    func updateMedication(_ medicationID: UUID, mutate: (inout Medication) -> Void) {
+        updateSelectedPatient { patient in
+            guard let index = patient.medications.firstIndex(where: { $0.id == medicationID }) else { return }
+            mutate(&patient.medications[index])
+        }
+    }
+
+    func addPriorTreatment(type: String, title: String, detail: String) {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
         updateSelectedPatient {
-            $0.priorTreatments.append(PriorTreatment(type: "Psychotherapie", title: "Neue Vorbehandlung", detail: "Ort · Zeitraum"))
+            $0.priorTreatments.append(PriorTreatment(type: type, title: trimmedTitle, detail: detail))
         }
     }
 
     func removePriorTreatment(_ treatmentID: UUID) {
         updateSelectedPatient {
             $0.priorTreatments.removeAll { $0.id == treatmentID }
+        }
+    }
+
+    func updatePriorTreatment(_ treatmentID: UUID, mutate: (inout PriorTreatment) -> Void) {
+        updateSelectedPatient { patient in
+            guard let index = patient.priorTreatments.firstIndex(where: { $0.id == treatmentID }) else { return }
+            mutate(&patient.priorTreatments[index])
         }
     }
 
@@ -230,9 +257,28 @@ final class AppStore {
         selectedSessionID = session.id
     }
 
-    func addGOPEntry() {
+    func addGOPEntry(
+        code: String,
+        description: String,
+        factor: Double,
+        basePrice: Double,
+        maxFactorNoJustification: Double = 2.3,
+        maxFactor: Double = 3.5,
+        commonFactors: [Double] = [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+    ) {
+        let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCode.isEmpty, !trimmedDescription.isEmpty else { return }
         updateSelectedSession {
-            $0.gopEntries.append(GOPEntry(code: "801a", description: "Zusätzliche Beratungsleistung", factor: 1.5, basePrice: 22.15))
+            $0.gopEntries.append(GOPEntry(
+                code: trimmedCode,
+                description: trimmedDescription,
+                factor: min(factor, maxFactor),
+                basePrice: basePrice,
+                maxFactorNoJustification: maxFactorNoJustification,
+                maxFactor: maxFactor,
+                commonFactors: commonFactors
+            ))
         }
     }
 
@@ -424,6 +470,58 @@ final class AppStore {
         .sorted { $0.displayTitle < $1.displayTitle }
 
         selectedQuestionnaireID = installedQuestionnaires.first?.id ?? ""
+    }
+
+    private func loadClinicalCatalogs() {
+        let decoder = JSONDecoder()
+
+        if let url = Bundle.module.url(forResource: "icd10_codes", withExtension: "json", subdirectory: "Resources"),
+           let data = try? Data(contentsOf: url),
+           let catalog = try? decoder.decode(ICDCatalog.self, from: data) {
+            icdCatalog = catalog.codes
+        }
+
+        if let url = Bundle.module.url(forResource: "gop_codes", withExtension: "json", subdirectory: "Resources"),
+           let data = try? Data(contentsOf: url),
+           let catalog = try? decoder.decode([GOPCatalogEntry].self, from: data) {
+            gopCatalog = catalog
+        }
+
+        medicationCatalog = [
+            ClinicalChoice(id: "sertralin", title: "Sertralin", subtitle: "1x morgens", badge: "50 mg"),
+            ClinicalChoice(id: "escitalopram", title: "Escitalopram", subtitle: "1x morgens", badge: "10 mg"),
+            ClinicalChoice(id: "venlafaxin", title: "Venlafaxin retard", subtitle: "1x morgens", badge: "75 mg"),
+            ClinicalChoice(id: "mirtazapin", title: "Mirtazapin", subtitle: "abends", badge: "15 mg"),
+            ClinicalChoice(id: "quetiapin", title: "Quetiapin", subtitle: "abends", badge: "25 mg"),
+            ClinicalChoice(id: "none", title: "Keine aktuelle Medikation", subtitle: "anamnestisch vermerkt", badge: "Info")
+        ]
+
+        priorTreatmentCatalog = [
+            ClinicalChoice(id: "ambulant-vt", title: "Ambulante Verhaltenstherapie", subtitle: "Vorbehandler / Zeitraum ergänzen", badge: "PT"),
+            ClinicalChoice(id: "ambulant-tp", title: "Ambulante tiefenpsychologische Therapie", subtitle: "Vorbehandler / Zeitraum ergänzen", badge: "PT"),
+            ClinicalChoice(id: "stationaer", title: "Stationäre psychosomatische Behandlung", subtitle: "Klinik / Zeitraum ergänzen", badge: "Klinik"),
+            ClinicalChoice(id: "tagesklinik", title: "Tagesklinische Behandlung", subtitle: "Einrichtung / Zeitraum ergänzen", badge: "Klinik"),
+            ClinicalChoice(id: "psychiater", title: "Psychiatrische Mitbehandlung", subtitle: "Arzt / Zeitraum ergänzen", badge: "Arzt"),
+            ClinicalChoice(id: "keine", title: "Keine psychotherapeutische Vorbehandlung", subtitle: "anamnestisch vermerkt", badge: "Info")
+        ]
+    }
+
+    func matchingICDCodes(_ query: String) -> [ICDCode] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = trimmed.isEmpty ? icdCatalog : icdCatalog.filter {
+            $0.code.localizedCaseInsensitiveContains(trimmed) ||
+            $0.description.localizedCaseInsensitiveContains(trimmed)
+        }
+        return Array(base.prefix(8))
+    }
+
+    func matchingGOPCodes(_ query: String) -> [GOPCatalogEntry] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = trimmed.isEmpty ? gopCatalog : gopCatalog.filter {
+            $0.code.localizedCaseInsensitiveContains(trimmed) ||
+            $0.description.localizedCaseInsensitiveContains(trimmed)
+        }
+        return base
     }
 
     private func randomToken() -> String {

@@ -602,6 +602,9 @@ private struct StammdatenTab: View {
 
 private struct AnamneseTab: View {
     @Environment(AppStore.self) private var store
+    @State private var diagnosisSearch = ""
+    @State private var medicationSearch = ""
+    @State private var priorTreatmentSearch = ""
 
     var body: some View {
         ScrollView {
@@ -615,8 +618,28 @@ private struct AnamneseTab: View {
                             }
                         }
                     }
-                    SecondaryActionButton("Diagnose hinzufügen") {
-                        store.addDiagnosis()
+                    ClinicalAddPopover(
+                        title: "Diagnose hinzufügen",
+                        placeholder: "Code oder Diagnose suchen...",
+                        query: $diagnosisSearch,
+                        options: store.matchingICDCodes(diagnosisSearch).map {
+                            ClinicalAddOption(
+                                id: $0.code,
+                                badge: $0.code,
+                                title: $0.description,
+                                subtitle: "ICD-10",
+                                fields: ["code": $0.code, "name": $0.description, "status": "gesichert", "since": "2026"]
+                            )
+                        },
+                        emptyText: "Keine ICD-10-Diagnose gefunden",
+                        allowsFreeText: false
+                    ) { values in
+                        store.addDiagnosis(
+                            code: values["code"] ?? "",
+                            name: values["name"] ?? "",
+                            statusText: values["status"] ?? "gesichert",
+                            since: values["since"] ?? "2026"
+                        )
                     }
                 }
 
@@ -642,11 +665,34 @@ private struct AnamneseTab: View {
                         ForEach(store.selectedPatient.medications) { medication in
                             MedicationRow(medication: medication) {
                                 store.removeMedication(medication.id)
+                            } onUpdate: { keyPath, value in
+                                store.updateMedication(medication.id) { $0[keyPath: keyPath] = value }
                             }
                         }
                     }
-                    SecondaryActionButton("Medikament hinzufügen") {
-                        store.addMedication()
+                    ClinicalAddPopover(
+                        title: "Medikament hinzufügen",
+                        placeholder: "Medikament suchen...",
+                        query: $medicationSearch,
+                        options: filteredClinicalChoices(store.medicationCatalog, query: medicationSearch).map {
+                            ClinicalAddOption(
+                                id: $0.id,
+                                badge: $0.badge,
+                                title: $0.title,
+                                subtitle: $0.subtitle,
+                                fields: ["name": $0.title, "dose": $0.badge == "Info" ? "" : $0.badge, "frequency": $0.subtitle, "since": "Heute"]
+                            )
+                        },
+                        emptyText: "Kein Medikament gefunden",
+                        allowsFreeText: true,
+                        freeTextFieldID: "name"
+                    ) { values in
+                        store.addMedication(
+                            name: values["name"] ?? "",
+                            dose: values["dose"] ?? "Dosis ergänzen",
+                            frequency: values["frequency"] ?? "Einnahme ergänzen",
+                            since: values["since"] ?? "Heute"
+                        )
                     }
                 }
 
@@ -656,11 +702,33 @@ private struct AnamneseTab: View {
                         ForEach(store.selectedPatient.priorTreatments) { treatment in
                             PriorTreatmentRow(treatment: treatment) {
                                 store.removePriorTreatment(treatment.id)
+                            } onUpdate: { keyPath, value in
+                                store.updatePriorTreatment(treatment.id) { $0[keyPath: keyPath] = value }
                             }
                         }
                     }
-                    SecondaryActionButton("Vorbehandlung hinzufügen") {
-                        store.addPriorTreatment()
+                    ClinicalAddPopover(
+                        title: "Vorbehandlung hinzufügen",
+                        placeholder: "Vorbehandlung suchen...",
+                        query: $priorTreatmentSearch,
+                        options: filteredClinicalChoices(store.priorTreatmentCatalog, query: priorTreatmentSearch).map {
+                            ClinicalAddOption(
+                                id: $0.id,
+                                badge: $0.badge,
+                                title: $0.title,
+                                subtitle: $0.subtitle,
+                                fields: ["type": $0.badge, "title": $0.title, "detail": $0.subtitle]
+                            )
+                        },
+                        emptyText: "Keine Vorbehandlung gefunden",
+                        allowsFreeText: true,
+                        freeTextFieldID: "title"
+                    ) { values in
+                        store.addPriorTreatment(
+                            type: values["type"] ?? "Info",
+                            title: values["title"] ?? "",
+                            detail: values["detail"] ?? "Details ergänzen"
+                        )
                     }
                 }
 
@@ -685,6 +753,16 @@ private struct AnamneseTab: View {
             get: { store.selectedPatient[keyPath: keyPath] },
             set: { newValue in store.updateSelectedPatient { $0[keyPath: keyPath] = newValue } }
         )
+    }
+
+    private func filteredClinicalChoices(_ choices: [ClinicalChoice], query: String) -> [ClinicalChoice] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = trimmed.isEmpty ? choices : choices.filter {
+            $0.title.localizedCaseInsensitiveContains(trimmed) ||
+            $0.subtitle.localizedCaseInsensitiveContains(trimmed) ||
+            $0.badge.localizedCaseInsensitiveContains(trimmed)
+        }
+        return Array(base.prefix(8))
     }
 }
 
@@ -741,6 +819,7 @@ private struct SessionEditor: View {
     let session: SessionRecord
     @State private var topicDraft = ""
     @State private var interventionDraft = ""
+    @State private var gopSearch = ""
 
     var body: some View {
         ScrollView {
@@ -830,13 +909,7 @@ private struct SessionEditor: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        SectionLabel("GOP-Ziffern")
-                        Spacer()
-                        SecondaryActionButton("GOP hinzufügen") {
-                            store.addGOPEntry()
-                        }
-                    }
+                    FormSectionHeader("GOP-Ziffern")
                     VStack(spacing: 7) {
                         ForEach(store.selectedSession?.gopEntries ?? []) { entry in
                             GOPEntryCard(entry: entry) { factor in
@@ -845,6 +918,42 @@ private struct SessionEditor: View {
                                 store.removeGOPEntry(entry.id)
                             }
                         }
+                    }
+                    ClinicalAddPopover(
+                        title: "GOP hinzufügen",
+                        placeholder: "GOP-Ziffer oder Leistung suchen...",
+                        query: $gopSearch,
+                        options: store.matchingGOPCodes(gopSearch).map { entry in
+                            return ClinicalAddOption(
+                                id: entry.code,
+                                badge: entry.code,
+                                title: entry.description,
+                                subtitle: "\(entry.points) Punkte · Standard \(String(format: "%.1f", entry.maxFactorNoJustification)) · max. \(String(format: "%.1f", entry.maxFactor))",
+                                fields: [
+                                    "code": entry.code,
+                                    "description": entry.description,
+                                    "factor": String(format: "%.1f", entry.maxFactorNoJustification),
+                                    "basePrice": String(format: "%.2f", entry.basePrice),
+                                    "maxFactorNoJustification": String(format: "%.1f", entry.maxFactorNoJustification),
+                                    "maxFactor": String(format: "%.1f", entry.maxFactor),
+                                    "commonFactors": entry.commonFactors.map { String(format: "%.1f", $0) }.joined(separator: ",")
+                                ]
+                            )
+                        },
+                        emptyText: "Keine GOP-Ziffer gefunden",
+                        allowsFreeText: false
+                    ) { values in
+                        store.addGOPEntry(
+                            code: values["code"] ?? "",
+                            description: values["description"] ?? "",
+                            factor: Double((values["factor"] ?? "").replacingOccurrences(of: ",", with: ".")) ?? 2.3,
+                            basePrice: Double((values["basePrice"] ?? "").replacingOccurrences(of: ",", with: ".")) ?? 0,
+                            maxFactorNoJustification: Double((values["maxFactorNoJustification"] ?? "").replacingOccurrences(of: ",", with: ".")) ?? 2.3,
+                            maxFactor: Double((values["maxFactor"] ?? "").replacingOccurrences(of: ",", with: ".")) ?? 3.5,
+                            commonFactors: (values["commonFactors"] ?? "")
+                                .split(separator: ",")
+                                .compactMap { Double(String($0).replacingOccurrences(of: ",", with: ".")) }
+                        )
                     }
                     HStack {
                         Text("Gesamt")
@@ -1251,6 +1360,7 @@ private struct AutoSaveIndicator: View {
 private struct InputField: View {
     let title: String?
     @Binding var text: String
+    var placeholder = ""
     var compact = false
 
     var body: some View {
@@ -1258,7 +1368,7 @@ private struct InputField: View {
             if let title {
                 SectionLabel(title)
             }
-            TextField("", text: $text)
+            TextField(placeholder, text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .padding(.horizontal, 10)
@@ -1477,6 +1587,155 @@ private struct FormSectionHeader: View {
     }
 }
 
+private struct ClinicalAddOption: Identifiable {
+    let id: String
+    let badge: String
+    let title: String
+    let subtitle: String
+    let fields: [String: String]
+}
+
+private struct ClinicalAddPopover: View {
+    let title: String
+    let placeholder: String
+    @Binding var query: String
+    let options: [ClinicalAddOption]
+    let emptyText: String
+    var allowsFreeText = false
+    var freeTextFieldID = "title"
+    let onSubmit: ([String: String]) -> Void
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented = true
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "plus")
+                Text(title)
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(PraxisPalette.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color(hex: "#f0f6ff")))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(hex: "#d0dcf5"), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 7)
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    SectionLabel(title)
+                    Spacer()
+                    Button("Schließen") {
+                        isPresented = false
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(PraxisPalette.subtleText)
+                }
+
+                SearchField(placeholder, text: $query, compact: true)
+                    .onSubmit {
+                        submitFreeText()
+                    }
+
+                ScrollView {
+                    VStack(spacing: 5) {
+                        if options.isEmpty {
+                            Text(emptyText)
+                                .font(.system(size: 12))
+                                .foregroundStyle(PraxisPalette.subtleText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 11)
+                                .padding(.vertical, 9)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(PraxisPalette.field))
+                        } else {
+                            ForEach(options) { option in
+                                Button {
+                                    onSubmit(option.fields)
+                                    isPresented = false
+                                } label: {
+                                    CatalogOptionRow(badge: option.badge, title: option.title, subtitle: option.subtitle)
+                                }
+                                .buttonStyle(.plain)
+                                .interactiveHover(cornerRadius: 8)
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 280)
+
+                if allowsFreeText {
+                    HStack {
+                        Text("Return übernimmt den Suchtext als freien Eintrag.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(PraxisPalette.subtleText)
+                        Spacer()
+                    }
+                }
+            }
+            .padding(12)
+            .frame(width: 390)
+        }
+        .onChange(of: isPresented) { _, newValue in
+            if !newValue {
+                query = ""
+            }
+        }
+    }
+
+    private func submitFreeText() {
+        guard allowsFreeText else { return }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        onSubmit([freeTextFieldID: trimmed])
+        isPresented = false
+    }
+}
+
+private struct CatalogOptionRow: View {
+    let badge: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Text(badge)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color(hex: "#0055c4"))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: "#dce8ff")))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(PraxisPalette.text)
+                    .lineLimit(2)
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(PraxisPalette.subtleText)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(PraxisPalette.primary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(PraxisPalette.field)
+                .stroke(PraxisPalette.border, lineWidth: 1)
+        )
+    }
+}
+
 private struct InsurancePill: View {
     let title: String
     let isSelected: Bool
@@ -1584,22 +1843,98 @@ private struct SafetyFlagCell: View {
     }
 }
 
+private struct EditableInlineText: View {
+    let text: String
+    let font: Font
+    let foreground: Color
+    var background: Color? = nil
+    let onCommit: (String) -> Void
+    @State private var isEditing = false
+    @State private var draft = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        Group {
+            if isEditing {
+                TextField("", text: $draft)
+                    .textFieldStyle(.plain)
+                    .focused($isFocused)
+                    .onSubmit(commit)
+                    .frame(minWidth: 54)
+            } else {
+                Button {
+                    draft = text
+                    isEditing = true
+                } label: {
+                    Text(text.isEmpty ? "ergänzen" : text)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .font(font)
+        .foregroundStyle(foreground)
+        .padding(.horizontal, background == nil ? 0 : 7)
+        .padding(.vertical, background == nil ? 0 : 2)
+        .background(RoundedRectangle(cornerRadius: 4).fill(background ?? .clear))
+        .interactiveHover(cornerRadius: 4, lift: false)
+        .onChange(of: isEditing) { _, editing in
+            if editing {
+                DispatchQueue.main.async {
+                    isFocused = true
+                }
+            }
+        }
+        .onChange(of: isFocused) { _, focused in
+            if isEditing && !focused {
+                commit()
+            }
+        }
+    }
+
+    private func commit() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            onCommit(trimmed)
+        }
+        isEditing = false
+    }
+}
+
 private struct MedicationRow: View {
     let medication: Medication
     let onRemove: () -> Void
+    let onUpdate: (WritableKeyPath<Medication, String>, String) -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(medication.name)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(PraxisPalette.text)
+            EditableInlineText(
+                text: medication.name,
+                font: .system(size: 13, weight: .semibold),
+                foreground: PraxisPalette.text
+            ) { onUpdate(\.name, $0) }
             Spacer(minLength: 0)
-            Text("\(medication.dose) · \(medication.frequency)")
+            EditableInlineText(
+                text: medication.dose,
+                font: .system(size: 12),
+                foreground: Color(hex: "#666666")
+            ) { onUpdate(\.dose, $0) }
+            Text("·")
                 .font(.system(size: 12))
-                .foregroundStyle(Color(hex: "#666666"))
-            Text("seit \(medication.since)")
+                .foregroundStyle(Color(hex: "#aaaaaa"))
+            EditableInlineText(
+                text: medication.frequency,
+                font: .system(size: 12),
+                foreground: Color(hex: "#666666")
+            ) { onUpdate(\.frequency, $0) }
+            Text("seit")
                 .font(.system(size: 11))
                 .foregroundStyle(Color(hex: "#aaaaaa"))
+            EditableInlineText(
+                text: medication.since,
+                font: .system(size: 11),
+                foreground: Color(hex: "#aaaaaa")
+            ) { onUpdate(\.since, $0) }
             Button("×", action: onRemove)
                 .buttonStyle(.plain)
                 .foregroundStyle(Color(hex: "#cccccc"))
@@ -1618,22 +1953,27 @@ private struct MedicationRow: View {
 private struct PriorTreatmentRow: View {
     let treatment: PriorTreatment
     let onRemove: () -> Void
+    let onUpdate: (WritableKeyPath<PriorTreatment, String>, String) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Text(treatment.type)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(Color(hex: "#0055c4"))
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: "#e8f0fe")))
+            EditableInlineText(
+                text: treatment.type,
+                font: .system(size: 10, weight: .bold),
+                foreground: Color(hex: "#0055c4"),
+                background: Color(hex: "#e8f0fe")
+            ) { onUpdate(\.type, $0) }
             VStack(alignment: .leading, spacing: 1) {
-                Text(treatment.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(PraxisPalette.text)
-                Text(treatment.detail)
-                    .font(.system(size: 11))
-                    .foregroundStyle(PraxisPalette.subtleText)
+                EditableInlineText(
+                    text: treatment.title,
+                    font: .system(size: 13, weight: .semibold),
+                    foreground: PraxisPalette.text
+                ) { onUpdate(\.title, $0) }
+                EditableInlineText(
+                    text: treatment.detail,
+                    font: .system(size: 11),
+                    foreground: PraxisPalette.subtleText
+                ) { onUpdate(\.detail, $0) }
             }
             Spacer(minLength: 0)
             Button("×", action: onRemove)
@@ -1761,8 +2101,6 @@ private struct GOPEntryCard: View {
     let onFactorChange: (Double) -> Void
     let onRemove: () -> Void
 
-    private let factors: [Double] = [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
@@ -1783,7 +2121,7 @@ private struct GOPEntryCard: View {
             }
             HStack {
                 HStack(spacing: 3) {
-                    ForEach(factors, id: \.self) { factor in
+                    ForEach(entry.availableFactors, id: \.self) { factor in
                         Button(String(format: "%.1f", factor)) {
                             onFactorChange(factor)
                         }

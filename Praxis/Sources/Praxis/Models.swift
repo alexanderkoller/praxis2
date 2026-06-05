@@ -79,6 +79,47 @@ struct FHIRQuestionnaire: Codable, Identifiable, Sendable {
     }
 }
 
+struct ICDCatalog: Codable {
+    let codes: [ICDCode]
+}
+
+struct ICDCode: Codable, Identifiable, Sendable {
+    let code: String
+    let description: String
+
+    var id: String { code }
+}
+
+struct GOPCatalogEntry: Codable, Identifiable, Sendable {
+    let code: String
+    let description: String
+    let points: Int
+    let basePriceCents: Int
+    let minFactor: Double
+    let maxFactorNoJustification: Double
+    let maxFactor: Double
+    let commonFactors: [Double]
+
+    var id: String { code }
+    var basePrice: Double { Double(basePriceCents) / 100 }
+
+    private enum CodingKeys: String, CodingKey {
+        case code, description, points
+        case basePriceCents = "base_price_cents"
+        case minFactor = "min_factor"
+        case maxFactorNoJustification = "max_factor_no_justification"
+        case maxFactor = "max_factor"
+        case commonFactors = "common_factors"
+    }
+}
+
+struct ClinicalChoice: Identifiable, Sendable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let badge: String
+}
+
 enum SidebarItem: String, CaseIterable, Identifiable {
     case heute = "Heute"
     case patienten = "Patienten"
@@ -206,17 +247,36 @@ struct GOPEntry: Identifiable {
     var description: String
     var factor: Double
     var basePrice: Double
+    var maxFactorNoJustification: Double
+    var maxFactor: Double
+    var commonFactors: [Double]
 
-    init(id: UUID = UUID(), code: String, description: String, factor: Double, basePrice: Double) {
+    init(
+        id: UUID = UUID(),
+        code: String,
+        description: String,
+        factor: Double,
+        basePrice: Double,
+        maxFactorNoJustification: Double = 2.3,
+        maxFactor: Double = 3.5,
+        commonFactors: [Double] = [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+    ) {
         self.id = id
         self.code = code
         self.description = description
         self.factor = factor
         self.basePrice = basePrice
+        self.maxFactorNoJustification = maxFactorNoJustification
+        self.maxFactor = maxFactor
+        self.commonFactors = commonFactors
     }
 
     var price: Double {
         basePrice * factor
+    }
+
+    var availableFactors: [Double] {
+        [1.0, 1.8, 2.3, 2.5, 3.5].filter { $0 <= maxFactor }
     }
 }
 

@@ -49,6 +49,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.mainMenu?.items.first?.title = "Praxis"
+        DispatchQueue.main.async {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            NSApplication.shared.windows.forEach { window in
+                window.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
