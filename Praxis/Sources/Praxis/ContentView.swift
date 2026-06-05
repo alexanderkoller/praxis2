@@ -1,0 +1,2302 @@
+import SwiftUI
+
+struct ContentView: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 0) {
+            SidebarView()
+            switch store.sidebarSelection {
+            case .heute:
+                HeuteView()
+            case .patienten:
+                PatientenView()
+            case .kalender:
+                PlaceholderScreen(title: "Kalender", subtitle: "Noch nicht gestaltet. Die Terminlogik des Mocks ist bereits im Patientenbereich sichtbar.")
+            case .einstellungen:
+                PlaceholderScreen(title: "Einstellungen", subtitle: "Mock-Ansicht für Standardwerte, GOP-Faktoren und Praxisoptionen folgt im nächsten Schritt.")
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(PraxisPalette.chrome)
+        .sheet(item: resultBinding) { result in
+            QuestionnaireResultDetail(result: result)
+        }
+        .sheet(item: qrBinding) { session in
+            QRSessionSheet(session: session)
+        }
+    }
+
+    private var resultBinding: Binding<QuestionnaireResultRecord?> {
+        @Bindable var store = store
+        return $store.selectedQuestionnaireResult
+    }
+
+    private var qrBinding: Binding<AppStore.QRSession?> {
+        @Bindable var store = store
+        return $store.qrSession
+    }
+}
+
+private struct SidebarView: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ForEach([SidebarItem.heute, .patienten, .kalender], id: \.id) { item in
+                SidebarButton(title: item.rawValue, systemImage: item.systemImage, isSelected: store.sidebarSelection == item) {
+                    store.sidebarSelection = item
+                }
+            }
+            Spacer(minLength: 0)
+            SidebarButton(title: SidebarItem.einstellungen.rawValue, systemImage: SidebarItem.einstellungen.systemImage, isSelected: store.sidebarSelection == .einstellungen) {
+                store.sidebarSelection = .einstellungen
+            }
+        }
+        .padding(.vertical, 14)
+        .frame(width: 88)
+        .background(PraxisPalette.chrome)
+        .overlay(alignment: .trailing) {
+            Rectangle().fill(PraxisPalette.border).frame(width: 1)
+        }
+    }
+}
+
+private struct SidebarButton: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(isSelected ? Color.white.opacity(0.22) : Color.white)
+                    Image(systemName: systemImage)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isSelected ? .white : PraxisPalette.text)
+                }
+                .frame(width: 32, height: 32)
+
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(isSelected ? .white : Color(hex: "#555555"))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+            .frame(width: 74)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? PraxisPalette.primary : .clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct HeuteView: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 3) {
+                    SectionLabel("Donnerstag, 5. Juni", compact: false)
+                    Text("\(store.todayAgenda.count) Termine heute")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(PraxisPalette.text)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(PraxisPalette.border).frame(height: 1)
+                }
+
+                ScrollView {
+                    VStack(spacing: 3) {
+                        ForEach(Array(store.todayAgenda.enumerated()), id: \.element.appointment.id) { index, entry in
+                            if index == 1 {
+                                NowDivider()
+                                    .padding(.vertical, 4)
+                            }
+
+                            AppointmentAgendaCard(
+                                patientName: entry.patient.fullName,
+                                subtitle: entry.appointment.type + (entry.appointment.sessionNumber.map { " · #\($0)" } ?? ""),
+                                time: entry.appointment.time,
+                                duration: entry.appointment.durationMinutes,
+                                status: entry.appointment.status,
+                                isSelected: store.selectedAppointmentID == entry.appointment.id
+                            ) {
+                                store.selectPatientByAppointment(entry.appointment.id)
+                            }
+                        }
+                    }
+                    .padding(10)
+                }
+
+                Button {
+                    store.sidebarSelection = .patienten
+                    store.patientTab = .termine
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus")
+                        Text("Termin hinzufügen")
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(PraxisPalette.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(PraxisPalette.border).frame(height: 1)
+                }
+            }
+            .frame(width: 260)
+            .background(PraxisPalette.panel)
+            .overlay(alignment: .trailing) {
+                Rectangle().fill(PraxisPalette.border).frame(width: 1)
+            }
+
+            PatientDetailHost(showsTodayActions: true)
+        }
+    }
+}
+
+private struct PatientenView: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            PatientListPanel()
+            PatientDetailHost(showsTodayActions: false)
+        }
+    }
+}
+
+private struct PatientListPanel: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 8) {
+                SearchField("Suchen…", text: binding(\.patientSearchText))
+                FilterSegment(selection: binding(\.patientFilter), options: PatientFilter.allCases)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(store.filteredPatients) { patient in
+                        PatientRow(patient: patient, isSelected: patient.id == store.selectedPatientID) {
+                            store.selectPatient(patient.id)
+                            store.sidebarSelection = .patienten
+                        }
+                    }
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 8)
+            }
+
+            Button {} label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                    Text("Neuer Patient")
+                }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(PraxisPalette.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+            .buttonStyle(.plain)
+            .overlay(alignment: .top) {
+                Rectangle().fill(PraxisPalette.border).frame(height: 1)
+            }
+        }
+        .frame(width: 260)
+        .background(PraxisPalette.panel)
+        .overlay(alignment: .trailing) {
+            Rectangle().fill(PraxisPalette.border).frame(width: 1)
+        }
+    }
+
+    private func binding<Value>(_ keyPath: ReferenceWritableKeyPath<AppStore, Value>) -> Binding<Value> {
+        Binding(
+            get: { store[keyPath: keyPath] },
+            set: { store[keyPath: keyPath] = $0 }
+        )
+    }
+}
+
+private struct PatientRow: View {
+    let patient: Patient
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                AvatarView(patient: patient, size: 30, fontSize: 12)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(patient.fullName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isSelected ? .white : PraxisPalette.text)
+                    Text(patient.nextAppointmentText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.72) : PraxisPalette.subtleText)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(isSelected ? PraxisPalette.primary : .clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct PatientDetailHost: View {
+    @Environment(AppStore.self) private var store
+    let showsTodayActions: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            PatientHeader(showsTodayActions: showsTodayActions)
+            PatientTabBar()
+
+            switch store.patientTab {
+            case .uebersicht:
+                OverviewTab()
+            case .stammdaten:
+                StammdatenTab()
+            case .anamnese:
+                AnamneseTab()
+            case .sitzungen:
+                SitzungenTab()
+            case .frageboegen:
+                FrageboegenTab()
+            case .termine:
+                TermineTab()
+            case .dokumente:
+                DokumenteTab()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.white)
+    }
+}
+
+private struct PatientHeader: View {
+    @Environment(AppStore.self) private var store
+    let showsTodayActions: Bool
+
+    var body: some View {
+        HStack {
+            HStack(spacing: 10) {
+                AvatarView(patient: store.selectedPatient, size: 38, fontSize: 14)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(store.selectedPatient.fullName)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(PraxisPalette.text)
+                        .lineLimit(1)
+                    Text(showsTodayActions ? store.selectedPatient.agendaSubtitle : "geb. \(store.selectedPatient.birthDate) · Sitzung \(store.selectedPatient.sessionCount) / \(store.selectedPatient.sessionLimit)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(PraxisPalette.subtleText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
+                    Text(store.selectedPatient.badgeText)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#0055c4"))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: "#e8f0fe")))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+
+            Spacer(minLength: 12)
+
+            if showsTodayActions {
+                HStack(spacing: 7) {
+                    GhostButton("Abgesagt") {}
+                    PrimaryButton("Öffnen →") {
+                        store.sidebarSelection = .patienten
+                    }
+                }
+            } else if store.patientTab == .stammdaten || store.patientTab == .anamnese || store.patientTab == .sitzungen {
+                AutoSaveIndicator()
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 11)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color(hex: "#f0f0f5")).frame(height: 1)
+        }
+    }
+}
+
+private struct PatientTabBar: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(PatientTab.allCases) { tab in
+                    Button {
+                        store.patientTab = tab
+                    } label: {
+                        VStack(spacing: 4) {
+                            Text(tab.rawValue)
+                                .font(.system(size: 12, weight: store.patientTab == tab ? .semibold : .regular))
+                                .foregroundStyle(store.patientTab == tab ? PraxisPalette.primary : PraxisPalette.subtleText)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                            Rectangle()
+                                .fill(store.patientTab == tab ? PraxisPalette.primary : .clear)
+                                .frame(height: 2)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.top, 7)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+        }
+        .frame(height: 34)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color(hex: "#f0f0f5")).frame(height: 1)
+        }
+    }
+}
+
+private struct OverviewTab: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                HStack(alignment: .top, spacing: 12) {
+                    ReferenceCard(title: "Diagnosen") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(store.selectedPatient.diagnoses) { diagnosis in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text(diagnosis.code)
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(Color(hex: "#0055c4"))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: "#dce8ff")))
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(diagnosis.name)
+                                            .font(.system(size: 12.5, weight: .semibold))
+                                            .foregroundStyle(PraxisPalette.text)
+                                        Text("\(diagnosis.statusText.lowercased()) · seit \(diagnosis.since)")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(Color(hex: "#999999"))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ReferenceCard(title: "Letzter Fragebogen") {
+                        if let latest = store.selectedPatient.questionnaireResults.first {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(alignment: .lastTextBaseline, spacing: 6) {
+                                    Text(latest.questionnaireName)
+                                        .font(.system(size: 12, weight: .bold))
+                                    Text("\(latest.score)")
+                                        .font(.system(size: 22, weight: .bold))
+                                        .foregroundStyle(latest.tier.color)
+                                    Text(latest.tier.rawValue.lowercased())
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(PraxisPalette.subtleText)
+                                }
+                                Text("\(latest.date) · Skala 0–\(latest.maxScore)")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Color(hex: "#aaaaaa"))
+                                ScoreBar(score: latest.score, maxScore: latest.maxScore, color: latest.tier.color)
+                                Text("↓ Verbesserung gegenüber Vorwert")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Color(hex: "#27ae60"))
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 9) {
+                    SectionLabel("Allgemeine Notizen")
+                    MockTextEditor(text: patientBinding(\.overviewNotes), minHeight: 90)
+                }
+
+                VStack(alignment: .leading, spacing: 11) {
+                    SectionLabel("Letzte Notiz")
+                    if let latestSession = store.selectedPatient.sessions.sorted(by: { $0.number > $1.number }).first {
+                        Text("Sitzung #\(latestSession.number) · \(latestSession.date) · \(latestSession.durationMinutes) min")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color(hex: "#aaaaaa"))
+                        FlowChips(items: latestSession.topics.map { "Thema: \($0)" } + latestSession.interventions.map { "Intervention: \($0)" } + (latestSession.homework.isEmpty ? [] : ["HA: \(latestSession.homework)"]))
+                        Text(latestSession.note)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color(hex: "#2a2a2a"))
+                            .lineSpacing(5)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 11) {
+                    SectionLabel("Verlauf")
+                    VStack(spacing: 0) {
+                        ForEach(Array(store.selectedPatient.timeline.enumerated()), id: \.element.id) { index, event in
+                            TimelineRow(event: event, showsLine: index < store.selectedPatient.timeline.count - 1)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 32)
+        }
+    }
+
+    private func patientBinding(_ keyPath: WritableKeyPath<Patient, String>) -> Binding<String> {
+        Binding(
+            get: { store.selectedPatient[keyPath: keyPath] },
+            set: { newValue in
+                store.updateSelectedPatient { patient in
+                    patient[keyPath: keyPath] = newValue
+                }
+            }
+        )
+    }
+}
+
+private struct StammdatenTab: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                FormSection("Persönliche Daten") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 4), spacing: 10) {
+                        MenuField(title: "Anrede", selection: patientBinding(\.salutation), options: ["Herr", "Frau", "Divers", "—"])
+                        InputField(title: "Titel", text: patientBinding(\.title))
+                        InputField(title: "Vorname", text: patientBinding(\.firstName))
+                        InputField(title: "Nachname", text: patientBinding(\.lastName))
+                    }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), spacing: 10) {
+                        InputField(title: "Geburtsdatum", text: patientBinding(\.birthDate))
+                        InputField(title: "Geburtsort", text: patientBinding(\.birthPlace))
+                        InputField(title: "Staatsangehörigkeit", text: patientBinding(\.nationality))
+                    }
+                }
+
+                FormSection("Adresse & Kontakt") {
+                    HStack(spacing: 14) {
+                        InputField(title: "Straße & Nr.", text: patientBinding(\.street))
+                        InputField(title: "PLZ / Ort", text: patientBinding(\.city))
+                    }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), spacing: 10) {
+                        InputField(title: "Telefon", text: patientBinding(\.phone))
+                        InputField(title: "Mobil", text: patientBinding(\.mobile))
+                        InputField(title: "E-Mail", text: patientBinding(\.email))
+                    }
+                }
+
+                FormSection("Versicherung") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionLabel("Abrechnungsart")
+                        HStack(spacing: 6) {
+                            ForEach(InsuranceType.allCases) { option in
+                                InsurancePill(title: option.rawValue, isSelected: store.selectedPatient.insuranceType == option) {
+                                    store.updateSelectedPatient {
+                                        $0.insuranceType = option
+                                        if option == .selbstzahler {
+                                            $0.insurer = "Selbstzahler"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), spacing: 10) {
+                        InputField(title: "Krankenkasse", text: patientBinding(\.insurer))
+                        InputField(title: "Versichertennummer", text: patientBinding(\.insurerNumber))
+                        InputField(title: "Status", text: patientBinding(\.insurerStatus))
+                    }
+                }
+
+                FormSection("Hausarzt / Zuweiser") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), spacing: 10) {
+                        InputField(title: "Name", text: patientBinding(\.gpName))
+                        InputField(title: "Praxis", text: patientBinding(\.gpPractice))
+                        InputField(title: "Telefon", text: patientBinding(\.gpPhone))
+                    }
+                }
+
+                FormSection("Notfallkontakt") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), spacing: 10) {
+                        InputField(title: "Name", text: patientBinding(\.emergencyName))
+                        InputField(title: "Beziehung", text: patientBinding(\.emergencyRelation))
+                        InputField(title: "Telefon", text: patientBinding(\.emergencyPhone))
+                    }
+                }
+
+                FormSection("Gefahrenbereich") {
+                    HStack(spacing: 10) {
+                        Text("Patient wird in den Archivfilter verschoben, Daten bleiben im Mock erhalten.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color(hex: "#c03030"))
+                        Spacer()
+                        GhostButton("Archivieren", foreground: Color(hex: "#c03030"), border: Color(hex: "#e0a0a0")) {
+                            store.archiveSelectedPatient()
+                        }
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9)
+                            .fill(Color(hex: "#fff5f5"))
+                            .stroke(Color(hex: "#ffd0d0"), lineWidth: 1)
+                    )
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 40)
+        }
+    }
+
+    private func patientBinding(_ keyPath: WritableKeyPath<Patient, String>) -> Binding<String> {
+        Binding(
+            get: { store.selectedPatient[keyPath: keyPath] },
+            set: { newValue in store.updateSelectedPatient { $0[keyPath: keyPath] = newValue } }
+        )
+    }
+}
+
+private struct AnamneseTab: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 10) {
+                    FormSectionHeader("Diagnosen (ICD-10)")
+                    VStack(spacing: 7) {
+                        ForEach(store.selectedPatient.diagnoses) { diagnosis in
+                            DiagnosisRow(diagnosis: diagnosis) {
+                                store.removeDiagnosis(diagnosis.id)
+                            }
+                        }
+                    }
+                    SecondaryActionButton("Diagnose hinzufügen") {
+                        store.addDiagnosis()
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    FormSectionHeader("Allgemeine Notizen")
+                    MockTextEditor(text: patientBinding(\.anamnesisNotes), minHeight: 100)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    FormSectionHeader("Sicherheitsassessment")
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                        ForEach(MockData.safetyOptions, id: \.self) { option in
+                            SafetyFlagCell(title: option, isSelected: store.selectedPatient.safetyFlags.contains(option)) {
+                                store.toggleSafetyFlag(option)
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    FormSectionHeader("Aktuelle Medikation")
+                    VStack(spacing: 6) {
+                        ForEach(store.selectedPatient.medications) { medication in
+                            MedicationRow(medication: medication) {
+                                store.removeMedication(medication.id)
+                            }
+                        }
+                    }
+                    SecondaryActionButton("Medikament hinzufügen") {
+                        store.addMedication()
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    FormSectionHeader("Vorbehandlungen")
+                    VStack(spacing: 6) {
+                        ForEach(store.selectedPatient.priorTreatments) { treatment in
+                            PriorTreatmentRow(treatment: treatment) {
+                                store.removePriorTreatment(treatment.id)
+                            }
+                        }
+                    }
+                    SecondaryActionButton("Vorbehandlung hinzufügen") {
+                        store.addPriorTreatment()
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    FormSectionHeader("Sozialanamnese")
+                    MockTextEditor(text: patientBinding(\.socialHistory), minHeight: 90)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    FormSectionHeader("Familiäre Anamnese")
+                    MockTextEditor(text: patientBinding(\.familyHistory), minHeight: 90)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 40)
+        }
+    }
+
+    private func patientBinding(_ keyPath: WritableKeyPath<Patient, String>) -> Binding<String> {
+        Binding(
+            get: { store.selectedPatient[keyPath: keyPath] },
+            set: { newValue in store.updateSelectedPatient { $0[keyPath: keyPath] = newValue } }
+        )
+    }
+}
+
+private struct SitzungenTab: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Sitzungen")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color(hex: "#aaaaaa"))
+                        .textCase(.uppercase)
+                    Spacer()
+                    PrimaryIconButton("Neu", systemImage: "plus") {
+                        store.addSession()
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color(hex: "#ebebef")).frame(height: 1)
+                }
+
+                ScrollView {
+                    VStack(spacing: 3) {
+                        ForEach(store.selectedPatientSessions) { session in
+                            SessionListCard(session: session, isActive: store.selectedSessionID == session.id) {
+                                store.selectSession(session.id)
+                            }
+                        }
+                    }
+                    .padding(6)
+                }
+            }
+            .frame(width: 220)
+            .background(Color(hex: "#fafafa"))
+            .overlay(alignment: .trailing) {
+                Rectangle().fill(Color(hex: "#ebebef")).frame(width: 1)
+            }
+
+            if let session = store.selectedSession {
+                SessionEditor(session: session)
+            } else {
+                PlaceholderScreen(title: "Keine Sitzung", subtitle: "Wähle eine Sitzung aus der linken Liste.")
+            }
+        }
+    }
+}
+
+private struct SessionEditor: View {
+    @Environment(AppStore.self) private var store
+    let session: SessionRecord
+    @State private var topicDraft = ""
+    @State private var interventionDraft = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 10) {
+                            Text("Sitzung #\(session.number)")
+                                .font(.system(size: 16, weight: .bold))
+                            MenuField(title: nil, selection: Binding(
+                                get: { store.selectedSession?.type ?? session.type },
+                                set: { newValue in
+                                    store.updateSelectedSession {
+                                        $0.type = newValue
+                                        $0.shortType = newValue == "Probatorik" ? "Probatorik" : "VT"
+                                    }
+                                }
+                            ), options: MockData.sessionTypes, compact: true)
+                        }
+                        Text("\(session.date) · \(session.durationMinutes) min")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "#aaaaaa"))
+                    }
+                    Spacer()
+                    AutoSaveIndicator()
+                }
+                .padding(.bottom, 14)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color(hex: "#f0f0f5")).frame(height: 1)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    SectionLabel("Diagnosen")
+                    HStack(spacing: 5) {
+                        ForEach(store.selectedPatient.diagnoses) { diagnosis in
+                            HStack(spacing: 5) {
+                                Text(diagnosis.code)
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(Color(hex: "#0055c4"))
+                                Text(diagnosis.name)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(PraxisPalette.text)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 3)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Color(hex: "#f0f4ff")))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(hex: "#d0dcf5"), lineWidth: 1))
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    SectionLabel("Themen")
+                    ChipEditor(items: session.topics, draftText: $topicDraft, placeholder: "Thema hinzufügen") { topic in
+                        store.removeTopic(topic)
+                    } onSubmit: { value in
+                        store.addTopic(value)
+                        topicDraft = ""
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    SectionLabel("Interventionen")
+                    ChipEditor(items: session.interventions, draftText: $interventionDraft, placeholder: "Intervention hinzufügen") { intervention in
+                        store.removeIntervention(intervention)
+                    } onSubmit: { value in
+                        store.addIntervention(value)
+                        interventionDraft = ""
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    SectionLabel("Hausaufgaben")
+                    InputField(title: nil, text: Binding(
+                        get: { store.selectedSession?.homework ?? session.homework },
+                        set: { newValue in store.updateSelectedSession { $0.homework = newValue } }
+                    ), compact: true)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    SectionLabel("Notiz")
+                    MockTextEditor(text: Binding(
+                        get: { store.selectedSession?.note ?? session.note },
+                        set: { newValue in store.updateSelectedSession { $0.note = newValue } }
+                    ), minHeight: 180)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        SectionLabel("GOP-Ziffern")
+                        Spacer()
+                        SecondaryActionButton("GOP hinzufügen") {
+                            store.addGOPEntry()
+                        }
+                    }
+                    VStack(spacing: 7) {
+                        ForEach(store.selectedSession?.gopEntries ?? []) { entry in
+                            GOPEntryCard(entry: entry) { factor in
+                                store.setGOPFactor(entryID: entry.id, factor: factor)
+                            } onRemove: {
+                                store.removeGOPEntry(entry.id)
+                            }
+                        }
+                    }
+                    HStack {
+                        Text("Gesamt")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#555555"))
+                            .textCase(.uppercase)
+                        Spacer()
+                        Text(currency((store.selectedSession?.gopEntries ?? []).reduce(0) { $0 + $1.price }))
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color(hex: "#0055c4"))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color(hex: "#f0f4ff")))
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 40)
+        }
+    }
+}
+
+private struct FrageboegenTab: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    ForEach(store.groupedQuestionnaireResults, id: \.name) { group in
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                SectionLabel("\(group.name) · \(group.description)")
+                                Spacer()
+                                SparklineView(results: group.results)
+                            }
+                            VStack(spacing: 5) {
+                                ForEach(group.results) { result in
+                                    QuestionnaireResultRow(result: result) {
+                                        store.selectedQuestionnaireResult = result
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 20)
+            }
+
+            HStack(spacing: 10) {
+                MenuField(title: nil, selection: Binding(
+                    get: { store.selectedQuestionnaireName },
+                    set: { store.selectedQuestionnaireName = $0 }
+                ), options: MockData.bundledQuestionnaires, compact: true)
+                .frame(maxWidth: 280)
+                PrimaryButton("QR-Code senden") {
+                    store.startQRSession()
+                }
+                Text("Mock: erzeugt einen kurzlebigen lokalen Link ohne Netzwerkzugriff.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(hex: "#aaaaaa"))
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .overlay(alignment: .top) {
+                Rectangle().fill(Color(hex: "#f0f0f5")).frame(height: 1)
+            }
+        }
+    }
+}
+
+private struct TermineTab: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    AppointmentSection(title: "Geplante Termine", showsButton: true, appointments: store.selectedPatient.appointments.filter { !$0.isPast })
+                    AppointmentSection(title: "Vergangene Termine", showsButton: false, appointments: store.selectedPatient.appointments.filter(\.isPast))
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 16)
+            }
+            .overlay(alignment: .trailing) {
+                Rectangle().fill(Color(hex: "#f0f0f5")).frame(width: 1)
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                SectionLabel("Neuer Termin")
+                InputField(title: "Datum", text: Binding(get: { store.draftAppointment.date }, set: { store.draftAppointment.date = $0 }), compact: true)
+                HStack(spacing: 6) {
+                    InputField(title: "Zeit", text: Binding(get: { store.draftAppointment.time }, set: { store.draftAppointment.time = $0 }), compact: true)
+                    InputField(title: "Dauer", text: Binding(get: { store.draftAppointment.duration }, set: { store.draftAppointment.duration = $0 }), compact: true)
+                }
+                MenuField(title: "Typ", selection: Binding(get: { store.draftAppointment.type }, set: { store.draftAppointment.type = $0 }), options: MockData.appointmentTypes)
+                MenuField(title: "Wiederholung", selection: Binding(get: { store.draftAppointment.recurrence }, set: { store.draftAppointment.recurrence = $0 }), options: MockData.recurrenceOptions)
+                MockTextEditor(text: Binding(get: { store.draftAppointment.note }, set: { store.draftAppointment.note = $0 }), minHeight: 90, placeholder: "Optionale Notiz")
+                PrimaryButton("Termin anlegen") {
+                    store.createAppointment()
+                }
+                Text("Hinweis: Wiederkehrende Termine werden im Mock nicht persistiert, reagieren aber direkt in der Liste.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(hex: "#aaaaaa"))
+                Spacer()
+            }
+            .padding(16)
+            .frame(width: 240)
+            .background(Color(hex: "#fafafa"))
+        }
+    }
+}
+
+private struct DokumenteTab: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                PrimaryIconButton("Hochladen", systemImage: "arrow.up") {
+                    store.addUploadedDocument()
+                }
+                SearchField("Dokumente suchen…", text: Binding(get: { store.documentSearchText }, set: { store.documentSearchText = $0 }), compact: true)
+                    .frame(maxWidth: 220)
+                HStack(spacing: 5) {
+                    FilterPill(title: "Alle", isSelected: store.selectedDocumentCategory == nil) {
+                        store.selectedDocumentCategory = nil
+                    }
+                    ForEach([DocumentCategory.bericht, .gutachten, .einwilligung], id: \.id) { category in
+                        FilterPill(title: category.rawValue, isSelected: store.selectedDocumentCategory == category) {
+                            store.selectedDocumentCategory = category
+                        }
+                    }
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Color(hex: "#f0f0f5")).frame(height: 1)
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(store.groupedDocuments, id: \.year) { group in
+                        SectionLabel(group.year)
+                            .padding(.top, group.year == store.groupedDocuments.first?.year ? 0 : 10)
+                        ForEach(group.documents) { document in
+                            DocumentRow(document: document)
+                        }
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 10)
+            }
+
+            Button {} label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus")
+                    Text("Dateien hierher ziehen oder klicken zum Hochladen")
+                }
+                .font(.system(size: 13))
+                .foregroundStyle(Color(hex: "#aaaaaa"))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(Color(hex: "#d0d8f0"), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                )
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+        }
+    }
+}
+
+private struct PlaceholderScreen: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "square.grid.2x2")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(PraxisPalette.primary)
+            Text(title)
+                .font(.system(size: 24, weight: .bold))
+            Text(subtitle)
+                .font(.system(size: 14))
+                .foregroundStyle(PraxisPalette.subtleText)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 460)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.white)
+    }
+}
+
+private struct ReferenceCard<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color(hex: "#aaaaaa"))
+                .textCase(.uppercase)
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 124, alignment: .topLeading)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 11)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(PraxisPalette.field)
+                .stroke(PraxisPalette.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct SearchField: View {
+    let placeholder: String
+    @Binding var text: String
+    var compact = false
+
+    init(_ placeholder: String, text: Binding<String>, compact: Bool = false) {
+        self.placeholder = placeholder
+        self._text = text
+        self.compact = compact
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color(hex: "#aaaaaa"))
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: compact ? 13 : 12))
+        }
+        .padding(.horizontal, 10)
+        .frame(height: compact ? 32 : 30)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.85))
+                .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
+        )
+    }
+}
+
+private struct FilterSegment<Option: RawRepresentable & CaseIterable & Identifiable>: View where Option.RawValue == String {
+    @Binding var selection: Option
+    let options: [Option]
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options) { option in
+                Button {
+                    selection = option
+                } label: {
+                    Text(option.rawValue)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(selection.id == option.id ? PraxisPalette.text : Color(hex: "#555555"))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(selection.id == option.id ? .white : .clear)
+                                .shadow(color: .black.opacity(selection.id == option.id ? 0.06 : 0), radius: 3, y: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.06)))
+    }
+}
+
+private struct AvatarView: View {
+    let patient: Patient
+    let size: CGFloat
+    let fontSize: CGFloat
+
+    var body: some View {
+        LinearGradient(
+            colors: [Color(hex: patient.avatarStartHex), Color(hex: patient.avatarEndHex)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
+            Text(patient.initials)
+                .font(.system(size: fontSize, weight: .bold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+}
+
+private struct SectionLabel: View {
+    let text: String
+    var compact = true
+
+    init(_ text: String, compact: Bool = true) {
+        self.text = text
+        self.compact = compact
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: compact ? 10 : 11, weight: .bold))
+            .foregroundStyle(PraxisPalette.label)
+            .textCase(.uppercase)
+            .tracking(1)
+            .lineLimit(1)
+    }
+}
+
+private struct AppointmentAgendaCard: View {
+    let patientName: String
+    let subtitle: String
+    let time: String
+    let duration: Int
+    let status: AppointmentStatus
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(time)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(isSelected ? .white : PraxisPalette.text)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    Text("\(duration) min")
+                        .font(.system(size: 10))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.6) : Color(hex: "#aaaaaa"))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                .frame(width: 48, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(patientName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isSelected ? .white : PraxisPalette.text)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.72) : PraxisPalette.subtleText)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Circle()
+                    .fill(status == .erfolgt ? Color(hex: "#34c759") : (isSelected ? Color.white.opacity(0.6) : PraxisPalette.primary))
+                    .frame(width: 7, height: 7)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 9).fill(isSelected ? PraxisPalette.primary : .clear))
+            .opacity(status == .erfolgt ? 0.45 : 1)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct NowDivider: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            Rectangle().fill(Color(hex: "#f5a623")).frame(height: 1.5)
+            Text("Jetzt")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color(hex: "#f5a623"))
+                .textCase(.uppercase)
+            Rectangle().fill(Color(hex: "#f5a623")).frame(height: 1.5)
+        }
+    }
+}
+
+private struct AutoSaveIndicator: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle().fill(PraxisPalette.success).frame(width: 6, height: 6)
+            Text("Automatisch gespeichert")
+                .font(.system(size: 11))
+                .foregroundStyle(Color(hex: "#aaaaaa"))
+        }
+    }
+}
+
+private struct InputField: View {
+    let title: String?
+    @Binding var text: String
+    var compact = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: title == nil ? 0 : 4) {
+            if let title {
+                SectionLabel(title)
+            }
+            TextField("", text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .padding(.horizontal, 10)
+                .frame(height: compact ? 34 : 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(PraxisPalette.field)
+                        .stroke(PraxisPalette.border, lineWidth: 1)
+                )
+        }
+    }
+}
+
+private struct MenuField: View {
+    let title: String?
+    @Binding var selection: String
+    let options: [String]
+    var compact = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: title == nil ? 0 : 4) {
+            if let title {
+                SectionLabel(title)
+            }
+            Menu {
+                ForEach(options, id: \.self) { option in
+                    Button(option) { selection = option }
+                }
+            } label: {
+                HStack {
+                    Text(selection)
+                        .font(.system(size: compact ? 12 : 13, weight: compact ? .semibold : .regular))
+                        .foregroundStyle(PraxisPalette.text)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color(hex: "#aaaaaa"))
+                }
+                .padding(.horizontal, 10)
+                .frame(height: compact ? 32 : 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(PraxisPalette.field)
+                        .stroke(PraxisPalette.border, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct MockTextEditor: View {
+    @Binding var text: String
+    let minHeight: CGFloat
+    var placeholder = ""
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(PraxisPalette.field)
+                .stroke(PraxisPalette.border, lineWidth: 1)
+
+            if text.isEmpty && !placeholder.isEmpty {
+                Text(placeholder)
+                    .font(.system(size: 13))
+                    .foregroundStyle(PraxisPalette.label)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+            }
+
+            TextEditor(text: $text)
+                .scrollContentBackground(.hidden)
+                .font(.system(size: 13))
+                .foregroundStyle(PraxisPalette.text)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .frame(minHeight: minHeight)
+        }
+        .frame(minHeight: minHeight)
+    }
+}
+
+private struct FlowChips: View {
+    let items: [String]
+
+    var body: some View {
+        WrappingFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+            ForEach(items, id: \.self) { item in
+                Text(item)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color(hex: "#3a4a6a"))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(Color(hex: "#e8edf5")))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        }
+    }
+}
+
+private struct TimelineRow: View {
+    let event: TimelineEvent
+    let showsLine: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 2) {
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 10, height: 10)
+                if showsLine {
+                    Rectangle().fill(PraxisPalette.border).frame(width: 1.5)
+                }
+            }
+            .frame(width: 12)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.date)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(hex: "#aaaaaa"))
+                Text(event.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(PraxisPalette.text)
+                Text(event.subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(PraxisPalette.subtleText)
+            }
+            Spacer(minLength: 0)
+            Text("›")
+                .font(.system(size: 13))
+                .foregroundStyle(Color(hex: "#cccccc"))
+        }
+        .padding(.vertical, 8)
+    }
+
+    private var dotColor: Color {
+        switch event.kind {
+        case .session: return PraxisPalette.primary
+        case .questionnaire: return Color(hex: "#f59e0b")
+        case .document: return Color(hex: "#888888")
+        }
+    }
+}
+
+private struct FormSection<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            FormSectionHeader(title)
+            content
+        }
+    }
+}
+
+private struct FormSectionHeader: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel(title)
+            Rectangle().fill(Color(hex: "#f0f0f5")).frame(height: 1)
+        }
+    }
+}
+
+private struct InsurancePill: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isSelected ? .white : PraxisPalette.subtleText)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(isSelected ? PraxisPalette.primary : PraxisPalette.field))
+                .overlay(Capsule().stroke(isSelected ? PraxisPalette.primary : Color(hex: "#e0e0e8"), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct DiagnosisRow: View {
+    let diagnosis: Diagnosis
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(diagnosis.code)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color(hex: "#0055c4"))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: "#dce8ff")))
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(diagnosis.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(PraxisPalette.text)
+                    if diagnosis.isPrimary {
+                        Text("Hauptdiagnose")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Color(hex: "#0055c4"))
+                            .textCase(.uppercase)
+                    }
+                }
+                Text("\(diagnosis.statusText) · seit \(diagnosis.since)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(PraxisPalette.subtleText)
+            }
+            Spacer(minLength: 0)
+            Button("×", action: onRemove)
+                .buttonStyle(.plain)
+                .foregroundStyle(Color(hex: "#cccccc"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 9)
+                .fill(PraxisPalette.field)
+                .stroke(PraxisPalette.border, lineWidth: 1)
+        )
+        .overlay(alignment: .leading) {
+            if diagnosis.isPrimary {
+                Rectangle().fill(PraxisPalette.primary).frame(width: 3)
+            }
+        }
+    }
+}
+
+private struct SafetyFlagCell: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(isSelected ? PraxisPalette.danger : Color(hex: "#cccccc"), lineWidth: 1.5)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(isSelected ? PraxisPalette.danger : .clear))
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: 16, height: 16)
+                Text(title)
+                    .font(.system(size: 13))
+                    .foregroundStyle(isSelected ? Color(hex: "#c03030") : Color(hex: "#333333"))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color(hex: "#fff5f5") : PraxisPalette.field)
+                    .stroke(isSelected ? Color(hex: "#ffc8c8") : PraxisPalette.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct MedicationRow: View {
+    let medication: Medication
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(medication.name)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(PraxisPalette.text)
+            Spacer(minLength: 0)
+            Text("\(medication.dose) · \(medication.frequency)")
+                .font(.system(size: 12))
+                .foregroundStyle(Color(hex: "#666666"))
+            Text("seit \(medication.since)")
+                .font(.system(size: 11))
+                .foregroundStyle(Color(hex: "#aaaaaa"))
+            Button("×", action: onRemove)
+                .buttonStyle(.plain)
+                .foregroundStyle(Color(hex: "#cccccc"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(PraxisPalette.field)
+                .stroke(PraxisPalette.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct PriorTreatmentRow: View {
+    let treatment: PriorTreatment
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(treatment.type)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color(hex: "#0055c4"))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: "#e8f0fe")))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(treatment.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(PraxisPalette.text)
+                Text(treatment.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(PraxisPalette.subtleText)
+            }
+            Spacer(minLength: 0)
+            Button("×", action: onRemove)
+                .buttonStyle(.plain)
+                .foregroundStyle(Color(hex: "#cccccc"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(PraxisPalette.field)
+                .stroke(PraxisPalette.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct SecondaryActionButton: View {
+    let title: String
+    let action: () -> Void
+
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: "plus")
+                Text(title)
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(PraxisPalette.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color(hex: "#f0f6ff")))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(hex: "#d0dcf5"), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct SessionListCard: View {
+    let session: SessionRecord
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Sitzung #\(session.number)")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(isActive ? .white : PraxisPalette.text)
+                    Spacer(minLength: 0)
+                    Text(session.shortType)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(isActive ? .white : Color(hex: "#666666"))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(RoundedRectangle(cornerRadius: 3).fill(isActive ? Color.white.opacity(0.2) : Color(hex: "#f0f0f5")))
+                }
+                Text("\(session.date) · \(session.durationMinutes) min")
+                    .font(.system(size: 11))
+                    .foregroundStyle(isActive ? Color.white.opacity(0.72) : PraxisPalette.subtleText)
+                FlowChips(items: session.topics)
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .background(RoundedRectangle(cornerRadius: 9).fill(isActive ? PraxisPalette.primary : .clear))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ChipEditor: View {
+    let items: [String]
+    @Binding var draftText: String
+    let placeholder: String
+    let onRemove: (String) -> Void
+    let onSubmit: (String) -> Void
+
+    var body: some View {
+        WrappingFlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
+            ForEach(items, id: \.self) { item in
+                HStack(spacing: 4) {
+                    Text(item)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color(hex: "#1a3a7a"))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    Button("×") { onRemove(item) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color(hex: "#6080c0"))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 5).fill(Color(hex: "#e0eaff")))
+            }
+            TextField(placeholder, text: $draftText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .frame(minWidth: 96)
+                .onSubmit {
+                    onSubmit(draftText)
+                }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(PraxisPalette.field)
+                .stroke(PraxisPalette.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct GOPEntryCard: View {
+    let entry: GOPEntry
+    let onFactorChange: (Double) -> Void
+    let onRemove: () -> Void
+
+    private let factors: [Double] = [1.0, 1.5, 2.0, 2.3, 2.5, 3.0, 3.5]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Text(entry.code)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color(hex: "#0055c4"))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: "#dce8ff")))
+                Text(entry.description)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: "#333333"))
+                Spacer(minLength: 0)
+                Button("×", action: onRemove)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color(hex: "#cccccc"))
+            }
+            HStack {
+                HStack(spacing: 3) {
+                    ForEach(factors, id: \.self) { factor in
+                        Button(String(format: "%.1f", factor)) {
+                            onFactorChange(factor)
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: entry.factor == factor ? .semibold : .medium))
+                        .foregroundStyle(entry.factor == factor ? .white : Color(hex: "#555555"))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(RoundedRectangle(cornerRadius: 5).fill(entry.factor == factor ? PraxisPalette.primary : .white))
+                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(entry.factor == factor ? PraxisPalette.primary : Color(hex: "#e0e0e8"), lineWidth: 1))
+                    }
+                }
+                Spacer(minLength: 0)
+                Text(currency(entry.price))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(PraxisPalette.text)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 9)
+                .fill(PraxisPalette.field)
+                .stroke(PraxisPalette.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct SparklineView: View {
+    let results: [QuestionnaireResultRecord]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("Verlauf")
+                .font(.system(size: 11))
+                .foregroundStyle(Color(hex: "#aaaaaa"))
+            HStack(alignment: .bottom, spacing: 3) {
+                ForEach(Array(results.prefix(6).reversed())) { result in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(result.tier.color)
+                        .frame(width: 8, height: max(8, CGFloat(result.score) / CGFloat(max(result.maxScore, 1)) * 22))
+                }
+            }
+            .frame(height: 22)
+        }
+    }
+}
+
+private struct QuestionnaireResultRow: View {
+    let result: QuestionnaireResultRecord
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Text(result.date)
+                    .font(.system(size: 12))
+                    .foregroundStyle(PraxisPalette.subtleText)
+                    .frame(width: 90, alignment: .leading)
+                Text(result.sessionLabel)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(hex: "#aaaaaa"))
+                    .frame(width: 72, alignment: .leading)
+                HStack(spacing: 8) {
+                    ScoreBar(score: result.score, maxScore: result.maxScore, color: result.tier.color)
+                        .frame(maxWidth: 120)
+                    Text("\(result.score)")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(result.tier.color)
+                        .frame(width: 32, alignment: .trailing)
+                    Text(result.tier.rawValue)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(result.tier.pillForeground)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(result.tier.pillBackground))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                Spacer(minLength: 0)
+                Text("›")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: "#cccccc"))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(PraxisPalette.field)
+                    .stroke(PraxisPalette.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ScoreBar: View {
+    let score: Int
+    let maxScore: Int
+    let color: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(proxy.size.width, 1)
+            let fill = CGFloat(score) / CGFloat(max(maxScore, 1)) * width
+
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3).fill(Color(hex: "#ebebef"))
+                RoundedRectangle(cornerRadius: 3).fill(color).frame(width: fill)
+            }
+        }
+        .frame(height: 6)
+    }
+}
+
+private struct AppointmentSection: View {
+    let title: String
+    let showsButton: Bool
+    let appointments: [AppointmentRecord]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel(title)
+                Spacer()
+                if showsButton {
+                    PrimaryIconButton("Neuer Termin", systemImage: "plus") {}
+                }
+            }
+            VStack(spacing: 5) {
+                ForEach(appointments) { appointment in
+                    AppointmentRow(appointment: appointment)
+                }
+            }
+        }
+    }
+}
+
+private struct AppointmentRow: View {
+    let appointment: AppointmentRecord
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(spacing: 0) {
+                Text(appointment.dayNumber)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(appointment.status == .heute ? Color(hex: "#1a7a3a") : PraxisPalette.text)
+                Text(appointment.month)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(appointment.status == .heute ? PraxisPalette.success : Color(hex: "#aaaaaa"))
+                    .textCase(.uppercase)
+            }
+            .frame(width: 38)
+
+            Rectangle().fill(PraxisPalette.border).frame(width: 1, height: 30)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(appointment.title)
+                    .font(.system(size: 13, weight: .semibold))
+                Text("\(appointment.durationMinutes) Min. · \(appointment.type)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(PraxisPalette.subtleText)
+            }
+            Spacer(minLength: 0)
+            Text(appointment.time)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color(hex: "#555555"))
+            StatusBadge(status: appointment.status)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 9)
+                .fill(appointment.status == .heute ? Color(hex: "#f0fff4") : PraxisPalette.field)
+                .stroke(appointment.status == .heute ? Color(hex: "#b6e8c4") : PraxisPalette.border, lineWidth: 1)
+        )
+        .overlay(alignment: .leading) {
+            if appointment.status == .heute || appointment.status == .geplant {
+                Rectangle()
+                    .fill(appointment.status == .heute ? PraxisPalette.success : PraxisPalette.primary)
+                    .frame(width: 3)
+            }
+        }
+    }
+}
+
+private struct StatusBadge: View {
+    let status: AppointmentStatus
+
+    var body: some View {
+        Text(status.rawValue)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(RoundedRectangle(cornerRadius: 4).fill(background))
+    }
+
+    private var background: Color {
+        switch status {
+        case .geplant: return Color(hex: "#e8f0fe")
+        case .heute: return Color(hex: "#d4f5d4")
+        case .erfolgt: return Color(hex: "#f0f0f5")
+        case .abgesagt: return Color(hex: "#fee2e2")
+        case .entfallen: return Color(hex: "#fde8d0")
+        }
+    }
+
+    private var foreground: Color {
+        switch status {
+        case .geplant: return Color(hex: "#0055c4")
+        case .heute: return Color(hex: "#1a6b1a")
+        case .erfolgt: return Color(hex: "#888888")
+        case .abgesagt: return Color(hex: "#b91c1c")
+        case .entfallen: return Color(hex: "#a04000")
+        }
+    }
+}
+
+private struct FilterPill: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(isSelected ? .white : PraxisPalette.subtleText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(isSelected ? PraxisPalette.primary : PraxisPalette.field))
+                .overlay(Capsule().stroke(isSelected ? PraxisPalette.primary : Color(hex: "#e0e0e8"), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct DocumentRow: View {
+    let document: PatientDocument
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(document.fileType)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(fileColor)
+                .frame(width: 32, height: 36)
+                .background(RoundedRectangle(cornerRadius: 5).fill(fileBackground))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(document.filename)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(PraxisPalette.text)
+                Text("\(document.source) · \(document.size)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(hex: "#aaaaaa"))
+            }
+            Spacer(minLength: 0)
+            TagView(text: document.category.rawValue, background: document.category.background, foreground: document.category.foreground)
+            Text(document.date)
+                .font(.system(size: 11))
+                .foregroundStyle(Color(hex: "#aaaaaa"))
+                .frame(width: 68, alignment: .trailing)
+            Menu {
+                Button("Umbenennen") {}
+                Button("Löschen") {}
+            } label: {
+                Text("•••")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: "#cccccc"))
+                    .padding(.horizontal, 4)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 9)
+                .fill(PraxisPalette.field)
+                .stroke(PraxisPalette.border, lineWidth: 1)
+        )
+    }
+
+    private var fileBackground: Color {
+        switch document.fileType {
+        case "PDF": return Color(hex: "#fee2e2")
+        case "DOCX": return Color(hex: "#dbeafe")
+        case "JPG", "PNG": return Color(hex: "#d4f5d4")
+        default: return Color(hex: "#f3f4f6")
+        }
+    }
+
+    private var fileColor: Color {
+        switch document.fileType {
+        case "PDF": return Color(hex: "#b91c1c")
+        case "DOCX": return Color(hex: "#1d4ed8")
+        case "JPG", "PNG": return Color(hex: "#166534")
+        default: return Color(hex: "#555555")
+        }
+    }
+}
+
+private struct TagView: View {
+    let text: String
+    let background: Color
+    let foreground: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(RoundedRectangle(cornerRadius: 4).fill(background))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+private struct WrappingFlowLayout: Layout {
+    var horizontalSpacing: CGFloat = 8
+    var verticalSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX > 0 && currentX + size.width > maxWidth {
+                currentX = 0
+                currentY += rowHeight + verticalSpacing
+                rowHeight = 0
+            }
+
+            currentX += size.width + horizontalSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
+
+        return CGSize(width: proposal.width ?? currentX, height: currentY + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var currentX = bounds.minX
+        var currentY = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX > bounds.minX && currentX + size.width > bounds.maxX {
+                currentX = bounds.minX
+                currentY += rowHeight + verticalSpacing
+                rowHeight = 0
+            }
+
+            subview.place(
+                at: CGPoint(x: currentX, y: currentY),
+                proposal: ProposedViewSize(width: size.width, height: size.height)
+            )
+
+            currentX += size.width + horizontalSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+private struct QuestionnaireResultDetail: View {
+    let result: QuestionnaireResultRecord
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(result.questionnaireName)
+                        .font(.system(size: 24, weight: .bold))
+                    Text(result.date)
+                        .font(.system(size: 12))
+                        .foregroundStyle(PraxisPalette.subtleText)
+                }
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(result.score) Pkt.")
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundStyle(result.tier.color)
+                    Text(result.tier.rawValue)
+                        .font(.system(size: 14))
+                        .foregroundStyle(result.tier.color)
+                }
+            }
+            .padding()
+
+            Divider()
+
+            List(result.answers) { answer in
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(answer.question)
+                            .font(.system(size: 14))
+                        Text(answer.answer)
+                            .font(.system(size: 12))
+                            .foregroundStyle(PraxisPalette.subtleText)
+                    }
+                    Spacer(minLength: 0)
+                    Text("\(answer.score)")
+                        .font(.system(size: 20, weight: .medium, design: .monospaced))
+                        .foregroundStyle(PraxisPalette.subtleText)
+                }
+                .padding(.vertical, 2)
+            }
+            .listStyle(.inset)
+
+            HStack {
+                Spacer()
+                PrimaryButton("Schließen") {
+                    dismiss()
+                }
+            }
+            .padding()
+        }
+        .frame(minWidth: 520, minHeight: 440)
+    }
+}
+
+private struct QRSessionSheet: View {
+    let session: AppStore.QRSession
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(session.questionnaireName)
+                .font(.system(size: 16, weight: .bold))
+            Text("Kurzlebiger Link für das iPad im lokalen Praxisnetz")
+                .font(.system(size: 12))
+                .foregroundStyle(PraxisPalette.subtleText)
+                .multilineTextAlignment(.center)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 10).fill(Color(hex: "#f0f0f5"))
+                MockQRGrid().padding(18)
+            }
+            .frame(width: 200, height: 200)
+
+            Text(session.url)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(PraxisPalette.subtleText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 6).fill(PraxisPalette.field))
+
+            if session.phase == .waiting {
+                HStack(spacing: 6) {
+                    Circle().fill(PraxisPalette.primary).frame(width: 7, height: 7)
+                    Text("Warte auf Antwort vom iPad…")
+                        .font(.system(size: 12))
+                        .foregroundStyle(PraxisPalette.subtleText)
+                }
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 54))
+                    .foregroundStyle(PraxisPalette.success)
+                Text("Mock-Antwort eingegangen")
+                    .font(.system(size: 14, weight: .semibold))
+            }
+
+            HStack(spacing: 8) {
+                GhostButton("Abbrechen") {
+                    store.closeQRSession()
+                    dismiss()
+                }
+                if session.phase == .waiting {
+                    PrimaryButton("Mock Antwort empfangen") {
+                        store.completeQRSession()
+                    }
+                } else {
+                    PrimaryButton("Fertig") {
+                        store.closeQRSession()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .padding(28)
+        .frame(width: 360)
+    }
+}
+
+private struct MockQRGrid: View {
+    var body: some View {
+        let cells: [Bool] = [
+            true,false,true,true,false,true,true,false,true,true,
+            false,true,false,true,false,false,true,false,false,true,
+            true,true,false,false,true,true,false,true,true,false,
+            true,false,true,false,true,false,true,false,true,false,
+            false,true,true,true,false,true,false,true,false,true,
+            true,false,false,true,true,false,true,true,false,false,
+            true,true,true,false,false,true,false,false,true,true,
+            false,true,false,true,true,false,true,false,true,false,
+            true,false,true,true,false,true,true,false,false,true,
+            true,true,false,false,true,false,true,true,false,true
+        ]
+
+        return LazyVGrid(columns: Array(repeating: GridItem(.fixed(14), spacing: 2), count: 10), spacing: 2) {
+            ForEach(Array(cells.enumerated()), id: \.offset) { entry in
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(entry.element ? PraxisPalette.text : .clear)
+                    .frame(width: 14, height: 14)
+            }
+        }
+    }
+}
+
+private struct GhostButton: View {
+    let title: String
+    var foreground: Color = Color(hex: "#555555")
+    var border: Color = Color(hex: "#e0e0e8")
+    let action: () -> Void
+
+    init(_ title: String, foreground: Color = Color(hex: "#555555"), border: Color = Color(hex: "#e0e0e8"), action: @escaping () -> Void) {
+        self.title = title
+        self.foreground = foreground
+        self.border = border
+        self.action = action
+    }
+
+    var body: some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color.white))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(border, lineWidth: 1))
+    }
+}
+
+private struct PrimaryButton: View {
+    let title: String
+    let action: () -> Void
+
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    var body: some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8).fill(PraxisPalette.primary))
+    }
+}
+
+private struct PrimaryIconButton: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    init(_ title: String, systemImage: String, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                Text(title)
+            }
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 6).fill(PraxisPalette.primary))
+        }
+        .buttonStyle(.plain)
+    }
+}
