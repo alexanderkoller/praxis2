@@ -262,6 +262,8 @@ private struct PatientRow: View {
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(isSelected ? PraxisPalette.primary : .clear)
@@ -1677,7 +1679,7 @@ private struct ClinicalAddPopover: View {
                 }
             }
             .padding(12)
-            .frame(width: 390)
+            .frame(width: 460)
         }
         .onChange(of: isPresented) { _, newValue in
             if !newValue {
@@ -1715,11 +1717,11 @@ private struct CatalogOptionRow: View {
                 Text(title)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(PraxisPalette.text)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
                     .font(.system(size: 11))
                     .foregroundStyle(PraxisPalette.subtleText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
             Image(systemName: "plus.circle.fill")
@@ -2703,6 +2705,10 @@ private struct InteractiveHoverModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(isEnabled ? 0.001 : 0))
+            )
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .scaleEffect(isEnabled && isHovered && lift ? 1.012 : 1)
             .brightness(isEnabled && isHovered ? 0.018 : 0)
