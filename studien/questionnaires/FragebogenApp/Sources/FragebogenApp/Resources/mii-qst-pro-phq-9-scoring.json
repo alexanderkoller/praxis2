@@ -1,0 +1,7 @@
+[
+  {"minScore":  0, "maxScore":  4, "label": "Keine/Minimale Depression",       "color": "green"},
+  {"minScore":  5, "maxScore":  9, "label": "Leichte Depression",               "color": "yellow"},
+  {"minScore": 10, "maxScore": 14, "label": "Mittelgradige Depression",         "color": "orange"},
+  {"minScore": 15, "maxScore": 19, "label": "Mittelschwer-schwere Depression",  "color": "red"},
+  {"minScore": 20, "maxScore": 27, "label": "Schwere Depression",               "color": "red"}
+]
