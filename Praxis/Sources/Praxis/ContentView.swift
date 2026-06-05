@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if os(macOS)
+import AppKit
+#endif
+
 struct ContentView: View {
     @Environment(AppStore.self) private var store
 
@@ -94,6 +98,7 @@ private struct SidebarButton: View {
             )
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 10, isEnabled: !isSelected)
     }
 }
 
@@ -154,6 +159,7 @@ private struct HeuteView: View {
                     .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
+                .interactiveHover(cornerRadius: 8, lift: false)
                 .overlay(alignment: .top) {
                     Rectangle().fill(PraxisPalette.border).frame(height: 1)
                 }
@@ -215,6 +221,7 @@ private struct PatientListPanel: View {
                 .padding(.vertical, 10)
             }
             .buttonStyle(.plain)
+            .interactiveHover(cornerRadius: 8, lift: false)
             .overlay(alignment: .top) {
                 Rectangle().fill(PraxisPalette.border).frame(height: 1)
             }
@@ -261,6 +268,7 @@ private struct PatientRow: View {
             )
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 9, isEnabled: !isSelected)
     }
 }
 
@@ -376,6 +384,7 @@ private struct PatientTabBar: View {
                         .padding(.top, 7)
                     }
                     .buttonStyle(.plain)
+                    .interactiveHover(cornerRadius: 8, lift: false)
                 }
             }
             .padding(.horizontal, 14)
@@ -1011,6 +1020,7 @@ private struct DokumenteTab: View {
                 )
             }
             .buttonStyle(.plain)
+            .interactiveHover(cornerRadius: 10)
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
         }
@@ -1115,6 +1125,7 @@ private struct FilterSegment<Option: RawRepresentable & CaseIterable & Identifia
                         )
                 }
                 .buttonStyle(.plain)
+                .interactiveHover(cornerRadius: 6, lift: false, isEnabled: selection.id != option.id)
             }
         }
         .padding(2)
@@ -1209,6 +1220,7 @@ private struct AppointmentAgendaCard: View {
             .opacity(status == .erfolgt ? 0.45 : 1)
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 9, isEnabled: !isSelected)
     }
 }
 
@@ -1333,6 +1345,7 @@ private struct QuestionnaireMenuField: View {
             )
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 8, isEnabled: !questionnaires.isEmpty)
         .disabled(questionnaires.isEmpty)
     }
 }
@@ -1420,6 +1433,7 @@ private struct TimelineRow: View {
                 .foregroundStyle(Color(hex: "#cccccc"))
         }
         .padding(.vertical, 8)
+        .interactiveHover(cornerRadius: 8, lift: false)
     }
 
     private var dotColor: Color {
@@ -1479,6 +1493,7 @@ private struct InsurancePill: View {
                 .overlay(Capsule().stroke(isSelected ? PraxisPalette.primary : Color(hex: "#e0e0e8"), lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 999, lift: false, isEnabled: !isSelected)
     }
 }
 
@@ -1515,6 +1530,7 @@ private struct DiagnosisRow: View {
             Button("×", action: onRemove)
                 .buttonStyle(.plain)
                 .foregroundStyle(Color(hex: "#cccccc"))
+                .deleteHover()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -1564,6 +1580,7 @@ private struct SafetyFlagCell: View {
             )
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 7)
     }
 }
 
@@ -1586,6 +1603,7 @@ private struct MedicationRow: View {
             Button("×", action: onRemove)
                 .buttonStyle(.plain)
                 .foregroundStyle(Color(hex: "#cccccc"))
+                .deleteHover()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -1621,6 +1639,7 @@ private struct PriorTreatmentRow: View {
             Button("×", action: onRemove)
                 .buttonStyle(.plain)
                 .foregroundStyle(Color(hex: "#cccccc"))
+                .deleteHover()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -1655,6 +1674,7 @@ private struct SecondaryActionButton: View {
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(hex: "#d0dcf5"), lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 7)
     }
 }
 
@@ -1688,6 +1708,7 @@ private struct SessionListCard: View {
             .background(RoundedRectangle(cornerRadius: 9).fill(isActive ? PraxisPalette.primary : .clear))
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 9, isEnabled: !isActive)
     }
 }
 
@@ -1710,6 +1731,7 @@ private struct ChipEditor: View {
                     Button("×") { onRemove(item) }
                         .buttonStyle(.plain)
                         .foregroundStyle(Color(hex: "#6080c0"))
+                        .deleteHover(tint: Color(hex: "#6080c0"))
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
@@ -1757,6 +1779,7 @@ private struct GOPEntryCard: View {
                 Button("×", action: onRemove)
                     .buttonStyle(.plain)
                     .foregroundStyle(Color(hex: "#cccccc"))
+                    .deleteHover()
             }
             HStack {
                 HStack(spacing: 3) {
@@ -1944,6 +1967,7 @@ private struct AppointmentRow: View {
                     .frame(width: 3)
             }
         }
+        .interactiveHover(cornerRadius: 9)
     }
 }
 
@@ -1996,6 +2020,7 @@ private struct FilterPill: View {
                 .overlay(Capsule().stroke(isSelected ? PraxisPalette.primary : Color(hex: "#e0e0e8"), lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 999, lift: false, isEnabled: !isSelected)
     }
 }
 
@@ -2041,6 +2066,7 @@ private struct DocumentRow: View {
                 .fill(PraxisPalette.field)
                 .stroke(PraxisPalette.border, lineWidth: 1)
         )
+        .interactiveHover(cornerRadius: 9)
     }
 
     private var fileBackground: Color {
@@ -2278,6 +2304,7 @@ private struct GhostButton: View {
             .padding(.vertical, 5)
             .background(RoundedRectangle(cornerRadius: 7).fill(Color.white))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(border, lineWidth: 1))
+            .interactiveHover(cornerRadius: 7)
     }
 }
 
@@ -2298,6 +2325,7 @@ private struct PrimaryButton: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: 8).fill(PraxisPalette.primary))
+            .interactiveHover(cornerRadius: 8)
     }
 }
 
@@ -2325,5 +2353,50 @@ private struct PrimaryIconButton: View {
             .background(RoundedRectangle(cornerRadius: 6).fill(PraxisPalette.primary))
         }
         .buttonStyle(.plain)
+        .interactiveHover(cornerRadius: 6)
+    }
+}
+
+private struct InteractiveHoverModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    let lift: Bool
+    let isEnabled: Bool
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .scaleEffect(isEnabled && isHovered && lift ? 1.012 : 1)
+            .brightness(isEnabled && isHovered ? 0.018 : 0)
+            .shadow(color: .black.opacity(isEnabled && isHovered && lift ? 0.08 : 0), radius: 7, y: 2)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(PraxisPalette.primary.opacity(isEnabled && isHovered ? 0.16 : 0), lineWidth: 1)
+            )
+            .animation(.easeOut(duration: 0.12), value: isHovered)
+            .onHover { hovering in
+                guard isEnabled else { return }
+                isHovered = hovering
+                #if os(macOS)
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+                #endif
+            }
+    }
+}
+
+private extension View {
+    func interactiveHover(cornerRadius: CGFloat, lift: Bool = true, isEnabled: Bool = true) -> some View {
+        modifier(InteractiveHoverModifier(cornerRadius: cornerRadius, lift: lift, isEnabled: isEnabled))
+    }
+
+    func deleteHover(tint: Color = PraxisPalette.danger) -> some View {
+        padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Circle().fill(tint.opacity(0.001)))
+            .interactiveHover(cornerRadius: 999, lift: false)
     }
 }
