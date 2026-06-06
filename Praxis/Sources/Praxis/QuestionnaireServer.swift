@@ -32,7 +32,7 @@ final class QuestionnaireServer {
         server.stop()
     }
 
-    private func parseAnswers(
+    func parseAnswers(
         _ body: [UInt8],
         questionnaire: FHIRQuestionnaire
     ) -> [String: FHIRQuestionnaire.FHIRAnswerOption] {

@@ -10,12 +10,12 @@ func renderQuestionnaire(
     token: String,
     patient: QuestionnairePatientIdentity
 ) -> String {
-    let rows = questionnaire.scorableItems.map { item in
-        let prefix = item.prefix.map { "\($0). " } ?? ""
-        let text = htmlEscape(item.text ?? item.linkId)
-        let options = (item.answerOption ?? []).map { option in
-            let display = htmlEscape(option.valueCoding?.display ?? "Antwort")
-            let code = htmlEscape(option.valueCoding?.code ?? display)
+    let rows: String = questionnaire.scorableItems.map { item -> String in
+        let prefix: String = item.prefix.map { "\($0). " } ?? ""
+        let text: String = htmlEscape(item.text ?? item.linkId)
+        let options: String = (item.answerOption ?? []).map { option -> String in
+            let display: String = htmlEscape(option.valueCoding?.display ?? "Antwort")
+            let code: String = htmlEscape(option.valueCoding?.code ?? display)
             return """
             <label class="option">
               <input type="radio" name="\(htmlEscape(item.linkId))" value="\(code)" required>
