@@ -2,7 +2,7 @@ import XCTest
 import GRDB
 @testable import Praxis
 
-final class KalenderTests: XCTestCase {
+final class CalendarTests: XCTestCase {
 
     // MARK: - gridYOffset
 
@@ -85,7 +85,7 @@ final class KalenderTests: XCTestCase {
 // MARK: - AppStore calendar logic
 
 @MainActor
-final class KalenderStoreTests: XCTestCase {
+final class CalendarStoreTests: XCTestCase {
 
     private var store: AppStore!
 
@@ -122,14 +122,14 @@ final class KalenderStoreTests: XCTestCase {
     }
 
     func testCalendarWeekTitleContainsKW() {
-        XCTAssertTrue(store.kalenderWeekTitle.contains("KW"))
+        XCTAssertTrue(store.calendarWeekTitle.contains("KW"))
     }
 
     func testEnterPlanningModeSetsPlanningPatientID() {
         let patientID = store.patients.first!.id
         store.enterPlanningMode(patientID: patientID)
         XCTAssertEqual(store.planningPatientID, patientID)
-        XCTAssertEqual(store.sidebarSelection, .kalender)
+        XCTAssertEqual(store.sidebarSelection, .calendar)
     }
 
     func testExitPlanningModeClearsPlanningPatientID() {

@@ -1,14 +1,14 @@
 import SwiftUI
 import AppKit
 
-// MARK: - KalenderView
+// MARK: - CalendarView
 
-struct KalenderView: View {
+struct CalendarView: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
         VStack(spacing: 0) {
-            KalenderTopBar()
+            CalendarTopBar()
             if store.planningPatientID != nil {
                 PlanningModeBanner()
             }
@@ -19,20 +19,20 @@ struct KalenderView: View {
     }
 }
 
-// MARK: - KalenderTopBar
+// MARK: - CalendarTopBar
 
-private struct KalenderTopBar: View {
+private struct CalendarTopBar: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
         HStack(spacing: 14) {
-            Text(store.kalenderWeekTitle)
+            Text(store.calendarWeekTitle)
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(PraxisPalette.text)
 
             HStack(spacing: 5) {
                 Button {
-                    store.kalenderWeekOffset -= 1
+                    store.calendarWeekOffset -= 1
                 } label: {
                     Text("‹")
                         .font(.system(size: 14, weight: .medium))
@@ -48,7 +48,7 @@ private struct KalenderTopBar: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    store.kalenderWeekOffset = 0
+                    store.calendarWeekOffset = 0
                 } label: {
                     Text("Heute")
                         .font(.system(size: 13, weight: .semibold))
@@ -60,7 +60,7 @@ private struct KalenderTopBar: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    store.kalenderWeekOffset += 1
+                    store.calendarWeekOffset += 1
                 } label: {
                     Text("›")
                         .font(.system(size: 14, weight: .medium))
@@ -79,8 +79,8 @@ private struct KalenderTopBar: View {
             Spacer(minLength: 12)
 
             HStack(spacing: 7) {
-                StatChip(count: store.kalenderWeekTermineCount, label: "Termine", danger: false)
-                StatChip(count: store.kalenderWeekAbgesagtCount, label: "Abgesagt", danger: true)
+                StatChip(count: store.calendarWeekAppointmentsCount, label: "Termine", danger: false)
+                StatChip(count: store.calendarWeekCancelledCount, label: "Abgesagt", danger: true)
             }
         }
         .padding(.horizontal, 18)
@@ -700,7 +700,7 @@ struct WeekGridView: View {
     static let startHour = 8
     static let slotCount = 22   // 08:00 through 18:30
 
-    private var weekDates: [Date] { store.weekDates(offset: store.kalenderWeekOffset) }
+    private var weekDates: [Date] { store.weekDates(offset: store.calendarWeekOffset) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -722,7 +722,7 @@ struct WeekGridView: View {
             ForEach(Array(weekDates.enumerated()), id: \.offset) { index, day in
                 DayColumn(
                     day: day,
-                    appointments: store.kalenderWeekAppointments.filter {
+                    appointments: store.calendarWeekAppointments.filter {
                         $0.appointment.isoDate == isoString(from: day)
                     },
                     isToday: isToday(day),

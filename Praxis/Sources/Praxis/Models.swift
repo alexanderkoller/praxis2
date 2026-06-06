@@ -123,7 +123,7 @@ struct ClinicalChoice: Identifiable, Sendable {
 enum SidebarItem: String, CaseIterable, Identifiable {
     case heute = "Heute"
     case patienten = "Patienten"
-    case kalender = "Kalender"
+    case calendar = "Kalender"
     case einstellungen = "Einstellungen"
 
     var id: String { rawValue }
@@ -903,7 +903,7 @@ extension SidebarItem {
         switch self {
         case .heute: return "calendar"
         case .patienten: return "person.2.fill"
-        case .kalender: return "calendar.badge.clock"
+        case .calendar: return "calendar.badge.clock"
         case .einstellungen: return "gearshape.fill"
         }
     }

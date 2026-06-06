@@ -54,8 +54,8 @@ final class AppStore {
     var selectedSessionID: UUID? = nil
     var showDocumentImporter = false
 
-    // MARK: - Kalender state
-    var kalenderWeekOffset: Int = 0
+    // MARK: - Calendar state
+    var calendarWeekOffset: Int = 0
     var planningPatientID: UUID? = nil
 
     struct CalendarDraft {
@@ -185,8 +185,8 @@ final class AppStore {
         return (0..<5).compactMap { cal.date(byAdding: .day, value: $0, to: adjustedStart) }
     }
 
-    var kalenderWeekTitle: String {
-        let dates = weekDates(offset: kalenderWeekOffset)
+    var calendarWeekTitle: String {
+        let dates = weekDates(offset: calendarWeekOffset)
         guard let start = dates.first, let end = dates.last else { return "" }
         var cal = Calendar(identifier: .iso8601)
         cal.locale = Locale(identifier: "de_DE")
@@ -200,8 +200,8 @@ final class AppStore {
         return "KW \(weekNum) · \(startStr)–\(endStr)"
     }
 
-    var kalenderWeekAppointments: [(patient: Patient, appointment: AppointmentRecord)] {
-        let visibleISO = Set(weekDates(offset: kalenderWeekOffset).map { isoString(from: $0) })
+    var calendarWeekAppointments: [(patient: Patient, appointment: AppointmentRecord)] {
+        let visibleISO = Set(weekDates(offset: calendarWeekOffset).map { isoString(from: $0) })
         return patients.flatMap { patient in
             patient.appointments.compactMap { appt in
                 visibleISO.contains(appt.isoDate) ? (patient, appt) : nil
@@ -209,10 +209,10 @@ final class AppStore {
         }
     }
 
-    var kalenderWeekTermineCount: Int { kalenderWeekAppointments.count }
+    var calendarWeekAppointmentsCount: Int { calendarWeekAppointments.count }
 
-    var kalenderWeekAbgesagtCount: Int {
-        kalenderWeekAppointments.filter { $0.appointment.status == .abgesagt }.count
+    var calendarWeekCancelledCount: Int {
+        calendarWeekAppointments.filter { $0.appointment.status == .abgesagt }.count
     }
 
     // MARK: - Navigation
@@ -472,12 +472,12 @@ final class AppStore {
         try? PatientRepository.insertAppointment(appointment, patientID: selectedPatientID)
     }
 
-    // MARK: - Kalender
+    // MARK: - Calendar
 
     func enterPlanningMode(patientID: UUID) {
         planningPatientID = patientID
         calendarDraft = CalendarDraft(patientID: patientID)
-        sidebarSelection = .kalender
+        sidebarSelection = .calendar
     }
 
     func exitPlanningMode() {

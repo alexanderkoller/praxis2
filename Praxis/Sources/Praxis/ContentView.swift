@@ -15,8 +15,8 @@ struct ContentView: View {
                 HeuteView()
             case .patienten:
                 PatientenView()
-            case .kalender:
-                KalenderView()
+            case .calendar:
+                CalendarView()
             case .einstellungen:
                 PlaceholderScreen(title: "Einstellungen", subtitle: "Mock-Ansicht für Standardwerte, GOP-Faktoren und Praxisoptionen folgt im nächsten Schritt.")
             }
@@ -47,7 +47,7 @@ private struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            ForEach([SidebarItem.heute, .patienten, .kalender], id: \.id) { item in
+            ForEach([SidebarItem.heute, .patienten, .calendar], id: \.id) { item in
                 SidebarButton(title: item.rawValue, systemImage: item.systemImage, isSelected: store.sidebarSelection == item) {
                     store.sidebarSelection = item
                 }
