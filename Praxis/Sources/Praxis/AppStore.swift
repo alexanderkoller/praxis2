@@ -14,13 +14,11 @@ private func praxisTodayDateString() -> String {
 @MainActor
 final class AppStore {
     struct QRSession: Identifiable {
-        enum Phase { case waiting, completed }
         let id = UUID()
         var token: String
         var questionnaireName: String
         var questionnaireID: String
         var url: String
-        var phase: Phase = .waiting
     }
 
     struct AppointmentDraft {
@@ -490,8 +488,7 @@ final class AppStore {
         } catch {
             qrSession = QRSession(token: token, questionnaireName: questionnaire.displayTitle,
                                   questionnaireID: questionnaire.id,
-                                  url: "Server konnte nicht gestartet werden: \(error.localizedDescription)",
-                                  phase: .completed)
+                                  url: "Server konnte nicht gestartet werden: \(error.localizedDescription)")
         }
     }
 
@@ -526,9 +523,10 @@ final class AppStore {
         }
         try? PatientRepository.insertQuestionnaireResult(result, answers: answerRows, patientID: selectedPatientID)
 
-        if var current = qrSession { current.phase = .completed; qrSession = current }
         questionnaireServer?.stop()
         questionnaireServer = nil
+        qrSession = nil
+        selectedQuestionnaireResult = result
     }
 
     func closeQRSession() {

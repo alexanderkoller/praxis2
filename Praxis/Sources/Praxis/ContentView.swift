@@ -2730,32 +2730,16 @@ private struct QRSessionSheet: View {
                 .padding(.vertical, 5)
                 .background(RoundedRectangle(cornerRadius: 6).fill(PraxisPalette.field))
 
-            if session.phase == .waiting {
-                HStack(spacing: 6) {
-                    Circle().fill(PraxisPalette.primary).frame(width: 7, height: 7)
-                    Text("Warte auf Antwort vom iPad…")
-                        .font(.system(size: 12))
-                        .foregroundStyle(PraxisPalette.subtleText)
-                }
-            } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 54))
-                    .foregroundStyle(PraxisPalette.success)
-                Text("Antwort eingegangen")
-                    .font(.system(size: 14, weight: .semibold))
+            HStack(spacing: 6) {
+                Circle().fill(PraxisPalette.primary).frame(width: 7, height: 7)
+                Text("Warte auf Antwort vom iPad…")
+                    .font(.system(size: 12))
+                    .foregroundStyle(PraxisPalette.subtleText)
             }
 
-            HStack(spacing: 8) {
-                GhostButton(session.phase == .waiting ? "Abbrechen" : "Schließen") {
-                    store.closeQRSession()
-                    dismiss()
-                }
-                if session.phase == .completed {
-                    PrimaryButton("Fertig") {
-                        store.closeQRSession()
-                        dismiss()
-                    }
-                }
+            GhostButton("Abbrechen") {
+                store.closeQRSession()
+                dismiss()
             }
         }
         .padding(28)
