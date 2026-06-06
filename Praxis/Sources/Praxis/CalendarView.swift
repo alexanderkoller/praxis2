@@ -175,7 +175,8 @@ struct AppointmentGridBlock: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(height: appointment.gridHeight, alignment: .topLeading)
         .background(blockStyle.background)
         .overlay(alignment: .leading) {
             Rectangle().fill(blockStyle.border).frame(width: 3)
@@ -365,42 +366,30 @@ private struct CalendarAvatarView: View {
 // MARK: - GhostBlock
 
 struct GhostBlock: View {
-    let time: String
     let durationMinutes: Int
 
-    private var yOffset: CGFloat {
-        let parts = time.split(separator: ":")
-        guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]) else { return 0 }
-        // +40 offsets past the DayColumnHeader; GhostBlock handles its own positioning
-        // unlike AppointmentGridBlock which uses external .offset(y: gridYOffset + 40)
-        return CGFloat((h - 8) * 60 + m) + 40
-    }
-
     private var height: CGFloat {
-        let slots = Int(ceil(Double(durationMinutes) / 30.0))
-        return CGFloat(slots * 30 - 2)
+        CGFloat(max(1, durationMinutes))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Neuer Termin")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color(hex: "#0055c4"))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: height)
-        .background(Color(hex: "#dbeafe").opacity(0.6))
-        .overlay(alignment: .leading) {
-            Rectangle().fill(Color(hex: "#0071e3").opacity(0.5)).frame(width: 3)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 5))
-        .opacity(0.55)
-        .padding(.horizontal, 3)
-        .offset(y: yOffset)
-        .animation(.easeInOut(duration: 0.15), value: height)
+        Rectangle()
+            .fill(Color(hex: "#dbeafe").opacity(0.6))
+            .overlay {
+                Rectangle().fill(Color(hex: "#0071e3").opacity(0.5)).frame(width: 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .overlay {
+            Text("+")
+                .font(.system(size: 16, weight: .light))
+                .foregroundStyle(PraxisPalette.primary.opacity(0.55))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .opacity(0.55)
+            .padding(.horizontal, 3)
+            .animation(.easeInOut(duration: 0.15), value: height)
     }
 }
 
@@ -700,37 +689,153 @@ struct WeekGridView: View {
     static let startHour = 8
     static let slotCount = 22   // 08:00 through 18:30
 
+    @State private var hoveredSlot: CalendarSlot? = nil
+    @State private var creationSlot: CalendarSlot? = nil
+    @State private var selectedAppointmentID: UUID? = nil
+
     private var weekDates: [Date] { store.weekDates(offset: store.calendarWeekOffset) }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            // Time column
-            VStack(spacing: 0) {
-                Color.clear.frame(height: 40)
-                ForEach(0..<Self.slotCount, id: \.self) { slot in
-                    TimeSlotLabel(slot: slot)
-                        .frame(height: Self.slotHeight)
-                }
-            }
-            .frame(width: Self.timeColumnWidth)
-            .background(.white)
-            .overlay(alignment: .trailing) {
-                Rectangle().fill(PraxisPalette.border).frame(width: 1)
-            }
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = proxy.size.height
+            let dayWidth = max(0, (width - Self.timeColumnWidth) / 5)
 
-            // Day columns
-            ForEach(Array(weekDates.enumerated()), id: \.offset) { index, day in
-                DayColumn(
-                    day: day,
-                    appointments: store.calendarWeekAppointments.filter {
-                        $0.appointment.isoDate == isoString(from: day)
-                    },
-                    isToday: isToday(day),
-                    isPlanning: store.planningPatientID != nil
-                )
-                if index < weekDates.count - 1 {
-                    Rectangle().fill(PraxisPalette.border).frame(width: 1)
+            ZStack(alignment: .topLeading) {
+                Color.white
+
+                CalendarDayBackgrounds(weekDates: weekDates, dayWidth: dayWidth)
+                    .frame(width: width, height: height, alignment: .topLeading)
+                    .allowsHitTesting(false)
+
+                CalendarGridLines(dayWidth: dayWidth)
+                    .frame(width: width, height: height, alignment: .topLeading)
+                    .allowsHitTesting(false)
+
+                ForEach(Array(weekDates.enumerated()), id: \.element) { index, day in
+                    DayColumnHeader(day: day, isToday: isToday(day))
+                        .frame(width: dayWidth, height: 40)
+                        .position(x: dayX(index, dayWidth: dayWidth), y: 20)
+                        .zIndex(2)
                 }
+
+                TimeColumn()
+                    .frame(width: Self.timeColumnWidth, height: height, alignment: .topLeading)
+                    .background(.white)
+                    .allowsHitTesting(false)
+                    .zIndex(3)
+
+                CalendarInteractionSurface(
+                    resolveSlot: { location in slot(at: location, dayWidth: dayWidth) },
+                    appointmentIDAt: { location in appointmentID(at: location, dayWidth: dayWidth) },
+                    isSlotOccupied: { slot in isSlotOccupied(slot.slot, appointments: appointments(for: weekDates[slot.dayIndex])) },
+                    onHoverSlot: { hoveredSlot = $0 },
+                    onTapAppointment: { appointmentID in
+                        guard creationSlot == nil, selectedAppointmentID == nil else {
+                            creationSlot = nil
+                            selectedAppointmentID = nil
+                            return
+                        }
+                        selectedAppointmentID = appointmentID
+                        creationSlot = nil
+                    },
+                    onTapSlot: { slot in
+                        guard creationSlot == nil, selectedAppointmentID == nil else {
+                            creationSlot = nil
+                            selectedAppointmentID = nil
+                            return
+                        }
+                        creationSlot = slot
+                        selectedAppointmentID = nil
+                        if let patientID = store.planningPatientID {
+                            store.calendarDraft.patientID = patientID
+                        }
+                    }
+                )
+                .frame(width: width, height: height)
+                .zIndex(10)
+
+                if let hoveredSlot,
+                   creationSlot == nil,
+                   !isSlotOccupied(hoveredSlot.slot, appointments: appointments(for: weekDates[hoveredSlot.dayIndex])) {
+                    GhostBlock(durationMinutes: MockData.duration(for: store.calendarDraft.type))
+                    .frame(width: max(0, dayWidth - 6))
+                    .position(
+                        x: dayX(hoveredSlot.dayIndex, dayWidth: dayWidth),
+                        y: gridY(slot: hoveredSlot.slot) + ghostHeight / 2
+                    )
+                    .allowsHitTesting(false)
+                    .zIndex(2)
+                }
+
+                ForEach(calendarEntries(), id: \.appointment.id) { entry in
+                    AppointmentGridBlock(
+                        patient: entry.patient,
+                        appointment: entry.appointment
+                    )
+                    .frame(width: max(0, dayWidth - 6))
+                    .position(
+                        x: dayX(entry.dayIndex, dayWidth: dayWidth),
+                        y: 40 + entry.appointment.gridYOffset + entry.appointment.gridHeight / 2
+                    )
+                    .allowsHitTesting(false)
+                    .zIndex(5)
+                }
+
+                if let creationSlot {
+                    GhostBlock(durationMinutes: MockData.duration(for: store.calendarDraft.type))
+                        .frame(width: max(0, dayWidth - 6))
+                        .position(
+                            x: dayX(creationSlot.dayIndex, dayWidth: dayWidth),
+                            y: gridY(slot: creationSlot.slot) + ghostHeight / 2
+                        )
+                        .allowsHitTesting(false)
+                        .zIndex(6)
+                }
+
+                if let creationSlot {
+                    let rect = slotRect(creationSlot, dayWidth: dayWidth, height: ghostHeight)
+                    CalendarFloatingPopover(
+                        anchorRect: rect,
+                        containerSize: CGSize(width: width, height: height),
+                        width: 280,
+                        estimatedHeight: 360
+                    ) {
+                        AppointmentCreationPopover(
+                            isoDate: isoString(from: weekDates[creationSlot.dayIndex]),
+                            time: slotTime(creationSlot.slot)
+                        ) {
+                            self.creationSlot = nil
+                        }
+                        .environment(store)
+                    }
+                    .zIndex(20)
+                }
+
+                if let selectedEntry {
+                    let rect = appointmentRect(selectedEntry, dayWidth: dayWidth)
+                    CalendarFloatingPopover(
+                        anchorRect: rect,
+                        containerSize: CGSize(width: width, height: height),
+                        width: 260,
+                        estimatedHeight: 205
+                    ) {
+                        AppointmentDetailPopover(
+                            patient: selectedEntry.patient,
+                            appointment: selectedEntry.appointment
+                        ) {
+                            selectedAppointmentID = nil
+                        }
+                        .environment(store)
+                    }
+                    .zIndex(20)
+                }
+            }
+            .frame(width: width, height: height, alignment: .topLeading)
+            .onChange(of: store.calendarWeekOffset) { _, _ in
+                hoveredSlot = nil
+                creationSlot = nil
+                selectedAppointmentID = nil
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -747,9 +852,301 @@ struct WeekGridView: View {
         fmt.dateFormat = "yyyy-MM-dd"
         return fmt.string(from: date)
     }
+
+    private func dayX(_ index: Int, dayWidth: CGFloat) -> CGFloat {
+        Self.timeColumnWidth + CGFloat(index) * dayWidth + dayWidth / 2
+    }
+
+    private func gridY(slot: Int) -> CGFloat {
+        40 + CGFloat(slot) * Self.slotHeight
+    }
+
+    private func slotTime(_ slot: Int) -> String {
+        let hour = Self.startHour + slot / 2
+        let minute = slot % 2 == 0 ? 0 : 30
+        return String(format: "%02d:%02d", hour, minute)
+    }
+
+    private func slot(at location: CGPoint, dayWidth: CGFloat) -> CalendarSlot? {
+        guard dayWidth > 0,
+              location.x >= Self.timeColumnWidth,
+              location.y >= 40 else { return nil }
+        let dayIndex = Int((location.x - Self.timeColumnWidth) / dayWidth)
+        let slot = Int((location.y - 40) / Self.slotHeight)
+        guard (0..<5).contains(dayIndex),
+              (0..<Self.slotCount).contains(slot) else { return nil }
+        return CalendarSlot(dayIndex: dayIndex, slot: slot)
+    }
+
+    private func slotRect(_ slot: CalendarSlot, dayWidth: CGFloat, height: CGFloat) -> CGRect {
+        let width = max(0, dayWidth - 6)
+        let center = CGPoint(
+            x: dayX(slot.dayIndex, dayWidth: dayWidth),
+            y: gridY(slot: slot.slot) + height / 2
+        )
+        return CGRect(
+            x: center.x - width / 2,
+            y: center.y - height / 2,
+            width: width,
+            height: height
+        )
+    }
+
+    private func appointmentRect(
+        _ entry: (patient: Patient, appointment: AppointmentRecord, dayIndex: Int),
+        dayWidth: CGFloat
+    ) -> CGRect {
+        let width = max(0, dayWidth - 6)
+        let center = CGPoint(
+            x: dayX(entry.dayIndex, dayWidth: dayWidth),
+            y: 40 + entry.appointment.gridYOffset + entry.appointment.gridHeight / 2
+        )
+        return CGRect(
+            x: center.x - width / 2,
+            y: center.y - entry.appointment.gridHeight / 2,
+            width: width,
+            height: entry.appointment.gridHeight
+        )
+    }
+
+    private func appointmentID(at location: CGPoint, dayWidth: CGFloat) -> UUID? {
+        for entry in calendarEntries() {
+            if appointmentRect(entry, dayWidth: dayWidth).contains(location) {
+                return entry.appointment.id
+            }
+        }
+        return nil
+    }
+
+    private var ghostHeight: CGFloat {
+        CGFloat(max(1, MockData.duration(for: store.calendarDraft.type)))
+    }
+
+    private func appointments(for day: Date) -> [(patient: Patient, appointment: AppointmentRecord)] {
+        let iso = isoString(from: day)
+        return store.calendarWeekAppointments.filter { $0.appointment.isoDate == iso }
+    }
+
+    private func calendarEntries() -> [(patient: Patient, appointment: AppointmentRecord, dayIndex: Int)] {
+        weekDates.enumerated().flatMap { index, day in
+            appointments(for: day).map { entry in
+                (patient: entry.patient, appointment: entry.appointment, dayIndex: index)
+            }
+        }
+    }
+
+    private var selectedEntry: (patient: Patient, appointment: AppointmentRecord, dayIndex: Int)? {
+        guard let selectedAppointmentID else { return nil }
+        return calendarEntries().first { $0.appointment.id == selectedAppointmentID }
+    }
+
+    private func isSlotOccupied(
+        _ slot: Int,
+        appointments: [(patient: Patient, appointment: AppointmentRecord)]
+    ) -> Bool {
+        let hour = Self.startHour + slot / 2
+        let minute = slot % 2 == 0 ? 0 : 30
+        let slotMinutes = hour * 60 + minute
+        return appointments.contains { entry in
+            let parts = entry.appointment.time.split(separator: ":")
+            guard parts.count == 2,
+                  let h = Int(parts[0]), let m = Int(parts[1]) else { return false }
+            let apptStart = h * 60 + m
+            let apptEnd = apptStart + entry.appointment.durationMinutes
+            return slotMinutes >= apptStart && slotMinutes < apptEnd
+        }
+    }
 }
 
-// MARK: - TimeSlotLabel
+// MARK: - Grid Background
+
+private struct CalendarSlot: Equatable {
+    let dayIndex: Int
+    let slot: Int
+}
+
+private struct CalendarInteractionSurface: NSViewRepresentable {
+    let resolveSlot: (CGPoint) -> CalendarSlot?
+    let appointmentIDAt: (CGPoint) -> UUID?
+    let isSlotOccupied: (CalendarSlot) -> Bool
+    let onHoverSlot: (CalendarSlot?) -> Void
+    let onTapAppointment: (UUID) -> Void
+    let onTapSlot: (CalendarSlot) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            resolveSlot: resolveSlot,
+            appointmentIDAt: appointmentIDAt,
+            isSlotOccupied: isSlotOccupied,
+            onHoverSlot: onHoverSlot,
+            onTapAppointment: onTapAppointment,
+            onTapSlot: onTapSlot
+        )
+    }
+
+    func makeNSView(context: Context) -> TrackingView {
+        let view = TrackingView()
+        view.coordinator = context.coordinator
+        return view
+    }
+
+    func updateNSView(_ nsView: TrackingView, context: Context) {
+        context.coordinator.resolveSlot = resolveSlot
+        context.coordinator.appointmentIDAt = appointmentIDAt
+        context.coordinator.isSlotOccupied = isSlotOccupied
+        context.coordinator.onHoverSlot = onHoverSlot
+        context.coordinator.onTapAppointment = onTapAppointment
+        context.coordinator.onTapSlot = onTapSlot
+        nsView.coordinator = context.coordinator
+    }
+
+    final class Coordinator {
+        var resolveSlot: (CGPoint) -> CalendarSlot?
+        var appointmentIDAt: (CGPoint) -> UUID?
+        var isSlotOccupied: (CalendarSlot) -> Bool
+        var onHoverSlot: (CalendarSlot?) -> Void
+        var onTapAppointment: (UUID) -> Void
+        var onTapSlot: (CalendarSlot) -> Void
+
+        init(
+            resolveSlot: @escaping (CGPoint) -> CalendarSlot?,
+            appointmentIDAt: @escaping (CGPoint) -> UUID?,
+            isSlotOccupied: @escaping (CalendarSlot) -> Bool,
+            onHoverSlot: @escaping (CalendarSlot?) -> Void,
+            onTapAppointment: @escaping (UUID) -> Void,
+            onTapSlot: @escaping (CalendarSlot) -> Void
+        ) {
+            self.resolveSlot = resolveSlot
+            self.appointmentIDAt = appointmentIDAt
+            self.isSlotOccupied = isSlotOccupied
+            self.onHoverSlot = onHoverSlot
+            self.onTapAppointment = onTapAppointment
+            self.onTapSlot = onTapSlot
+        }
+
+        func updateHover(at location: CGPoint) {
+            guard let slot = resolveSlot(location),
+                  !isSlotOccupied(slot) else {
+                onHoverSlot(nil)
+                return
+            }
+            onHoverSlot(slot)
+        }
+
+        func tap(at location: CGPoint) {
+            if let appointmentID = appointmentIDAt(location) {
+                onTapAppointment(appointmentID)
+                return
+            }
+            guard let slot = resolveSlot(location),
+                  !isSlotOccupied(slot) else { return }
+            onTapSlot(slot)
+        }
+    }
+
+    final class TrackingView: NSView {
+        weak var coordinator: Coordinator?
+        private var trackingArea: NSTrackingArea?
+
+        override var isFlipped: Bool { true }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let trackingArea {
+                removeTrackingArea(trackingArea)
+            }
+            let area = NSTrackingArea(
+                rect: bounds,
+                options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
+                owner: self
+            )
+            addTrackingArea(area)
+            trackingArea = area
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            coordinator?.updateHover(at: convert(event.locationInWindow, from: nil))
+        }
+
+        override func mouseEntered(with event: NSEvent) {
+            coordinator?.updateHover(at: convert(event.locationInWindow, from: nil))
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            coordinator?.onHoverSlot(nil)
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            coordinator?.tap(at: convert(event.locationInWindow, from: nil))
+        }
+    }
+}
+
+private struct CalendarDayBackgrounds: View {
+    let weekDates: [Date]
+    let dayWidth: CGFloat
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        ForEach(Array(weekDates.enumerated()), id: \.element) { index, day in
+            Rectangle()
+                .fill(dayColor(for: day))
+                .frame(width: dayWidth)
+                .offset(x: WeekGridView.timeColumnWidth + CGFloat(index) * dayWidth)
+        }
+    }
+
+    private func dayColor(for day: Date) -> Color {
+        if Calendar.current.isDateInToday(day) {
+            return Color(hex: "#fafbff")
+        }
+        if store.planningPatientID != nil {
+            return Color(hex: "#faf5ff")
+        }
+        return .white
+    }
+}
+
+private struct CalendarGridLines: View {
+    let dayWidth: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            for day in 0...5 {
+                let x = WeekGridView.timeColumnWidth + CGFloat(day) * dayWidth
+                var path = Path()
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+                context.stroke(path, with: .color(PraxisPalette.border), lineWidth: 1)
+            }
+
+            for slot in 0..<WeekGridView.slotCount {
+                let y = 40 + CGFloat(slot) * WeekGridView.slotHeight
+                var path = Path()
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+                context.stroke(
+                    path,
+                    with: .color(slot % 2 == 0 ? Color(hex: "#eaeaea") : Color(hex: "#f3f3f3")),
+                    lineWidth: slot % 2 == 0 ? 1 : 0.5
+                )
+            }
+        }
+    }
+}
+
+private struct TimeColumn: View {
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            ForEach(0..<WeekGridView.slotCount, id: \.self) { slot in
+                TimeSlotLabel(slot: slot)
+                    .offset(y: 40 + CGFloat(slot) * WeekGridView.slotHeight - 7)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .allowsHitTesting(false)
+    }
+}
 
 private struct TimeSlotLabel: View {
     let slot: Int
@@ -766,147 +1163,187 @@ private struct TimeSlotLabel: View {
         Text(labelText)
             .font(.system(size: 10))
             .foregroundStyle(isHour ? Color(hex: "#bbbbbb") : Color(hex: "#dddddd"))
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 6)
-            .padding(.top, -7)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(isHour ? Color(hex: "#eaeaea") : Color(hex: "#f3f3f3"))
-                    .frame(height: isHour ? 1 : 0.5)
-            }
+            .padding(.horizontal, 3)
+            .background(.white)
+            .padding(.trailing, 3)
     }
 }
 
-// MARK: - DayColumn
+private struct CalendarFloatingPopover<Content: View>: View {
+    let anchorRect: CGRect
+    let containerSize: CGSize
+    let width: CGFloat
+    let estimatedHeight: CGFloat
+    @ViewBuilder var content: Content
+    private let arrowWidth: CGFloat = 14
+    private let edgeInset: CGFloat = 8
+    private let gap: CGFloat = 12
 
-private struct DayColumn: View {
-    @Environment(AppStore.self) private var store
+    private var totalWidth: CGFloat {
+        width + arrowWidth
+    }
 
-    let day: Date
-    let appointments: [(patient: Patient, appointment: AppointmentRecord)]
-    let isToday: Bool
-    let isPlanning: Bool
+    private var opensLeft: Bool {
+        anchorRect.maxX + totalWidth + gap + edgeInset > containerSize.width
+    }
 
-    @State private var tappedTime: String? = nil
-    @State private var showCreationPopover = false
-    @State private var selectedAppointment: (patient: Patient, appointment: AppointmentRecord)? = nil
-    @State private var showDetailPopover = false
+    private var popoverCenterX: CGFloat {
+        let minX = totalWidth / 2 + edgeInset
+        let maxX = max(minX, containerSize.width - totalWidth / 2 - edgeInset)
+        if opensLeft {
+            let desired = anchorRect.minX - totalWidth / 2 - gap
+            return min(max(desired, minX), maxX)
+        }
+        let desired = anchorRect.maxX + totalWidth / 2 + gap
+        return min(max(desired, minX), maxX)
+    }
 
-    private var isoDate: String {
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "en_US_POSIX")
-        fmt.dateFormat = "yyyy-MM-dd"
-        return fmt.string(from: day)
+    private var popoverCenterY: CGFloat {
+        let minY = estimatedHeight / 2 + 8
+        let maxY = max(minY, containerSize.height - estimatedHeight / 2 - 8)
+        return min(max(anchorRect.midY, minY), maxY)
+    }
+
+    private var arrowOffsetY: CGFloat {
+        let halfTravel = max(0, estimatedHeight / 2 - 22)
+        return min(max(anchorRect.midY - popoverCenterY, -halfTravel), halfTravel)
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            // Column header
-            DayColumnHeader(day: day, isToday: isToday)
-                .frame(height: 40)
-                .zIndex(3)
-
-            // Background cells
-            VStack(spacing: 0) {
-                Color.clear.frame(height: 40)
-                ForEach(0..<WeekGridView.slotCount, id: \.self) { slot in
-                    DayCell(
-                        slot: slot,
-                        isToday: isToday,
-                        isPlanning: isPlanning,
-                        isOccupied: isSlotOccupied(slot)
-                    )
-                    .frame(height: WeekGridView.slotHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        guard !isSlotOccupied(slot) else { return }
-                        let hour = WeekGridView.startHour + slot / 2
-                        let minute = slot % 2 == 0 ? "00" : "30"
-                        tappedTime = String(format: "%02d:%02d", hour, minute)
-                        if isPlanning, let patientID = store.planningPatientID {
-                            store.calendarDraft.patientID = patientID
-                        }
-                        showCreationPopover = true
-                    }
-                }
+        HStack(spacing: 0) {
+            if !opensLeft {
+                PopoverArrow(pointsLeft: true)
+                    .padding(.trailing, -0.5)
+                    .offset(y: arrowOffsetY)
             }
-
-            // Ghost block
-            if let tappedTime, showCreationPopover {
-                GhostBlock(
-                    time: tappedTime,
-                    durationMinutes: MockData.duration(for: store.calendarDraft.type)
-                )
-                .zIndex(2)
-            }
-
-            // Appointment blocks
-            ForEach(appointments, id: \.appointment.id) { entry in
-                AppointmentGridBlock(
-                    patient: entry.patient,
-                    appointment: entry.appointment
-                )
-                .frame(height: entry.appointment.gridHeight)
-                .padding(.horizontal, 3)
-                .offset(y: entry.appointment.gridYOffset + 40)  // +40 for header
-                .zIndex(2)
-                .onTapGesture {
-                    selectedAppointment = entry
-                    showDetailPopover = true
+            content
+                .overlay {
+                    PopoverCardOutlineShape(arrowEdge: opensLeft ? .trailing : .leading)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
                 }
+            if opensLeft {
+                PopoverArrow(pointsLeft: false)
+                    .padding(.leading, -0.5)
+                    .offset(y: arrowOffsetY)
             }
-
-            // Current time indicator (today only)
-            if isToday {
-                CurrentTimeIndicator()
-                    .zIndex(4)
-            }
-
-            // Popover anchors — each popover needs its own anchor view; chaining
-            // two .popover modifiers on the same view is unreliable on macOS.
-            Color.clear.frame(width: 1, height: 1)
-                .popover(isPresented: $showCreationPopover, arrowEdge: .leading) {
-                    if let tappedTime {
-                        AppointmentCreationPopover(
-                            isoDate: isoDate,
-                            time: tappedTime
-                        ) {
-                            showCreationPopover = false
-                            self.tappedTime = nil
-                        }
-                        .environment(store)
-                    }
-                }
-
-            Color.clear.frame(width: 1, height: 1)
-                .popover(isPresented: $showDetailPopover, arrowEdge: .leading) {
-                    if let entry = selectedAppointment {
-                        AppointmentDetailPopover(
-                            patient: entry.patient,
-                            appointment: entry.appointment
-                        ) {
-                            showDetailPopover = false
-                        }
-                        .environment(store)
-                    }
-                }
         }
-        .frame(maxWidth: .infinity)
-        .clipped()
+        .compositingGroup()
+        .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
+        .frame(width: totalWidth, alignment: opensLeft ? .trailing : .leading)
+        .position(x: popoverCenterX, y: popoverCenterY)
     }
+}
 
-    private func isSlotOccupied(_ slot: Int) -> Bool {
-        let hour = WeekGridView.startHour + slot / 2
-        let minute = slot % 2 == 0 ? 0 : 30
-        let slotMinutes = hour * 60 + minute
-        return appointments.contains { entry in
-            let parts = entry.appointment.time.split(separator: ":")
-            guard parts.count == 2,
-                  let h = Int(parts[0]), let m = Int(parts[1]) else { return false }
-            let apptStart = h * 60 + m
-            let apptEnd = apptStart + entry.appointment.durationMinutes
-            return slotMinutes >= apptStart && slotMinutes < apptEnd
+private struct PopoverArrow: View {
+    let pointsLeft: Bool
+
+    var body: some View {
+        PopoverArrowShape(pointsLeft: pointsLeft)
+            .fill(Color.white)
+            .overlay {
+                PopoverArrowOutlineShape(pointsLeft: pointsLeft)
+                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
+            }
+            .frame(width: 14, height: 24)
+    }
+}
+
+private struct PopoverArrowShape: Shape {
+    let pointsLeft: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        if pointsLeft {
+            path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        } else {
+            path.move(to: CGPoint(x: rect.maxX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
         }
+        path.closeSubpath()
+        return path
+    }
+}
+
+private enum PopoverArrowEdge {
+    case leading
+    case trailing
+}
+
+private struct PopoverCardOutlineShape: Shape {
+    let arrowEdge: PopoverArrowEdge
+    private let radius: CGFloat = 12
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let r = min(radius, min(rect.width, rect.height) / 2)
+
+        path.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+        path.addArc(
+            center: CGPoint(x: rect.maxX - r, y: rect.minY + r),
+            radius: r,
+            startAngle: .degrees(-90),
+            endAngle: .degrees(0),
+            clockwise: false
+        )
+
+        if arrowEdge != .trailing {
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        } else {
+            path.move(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        }
+
+        path.addArc(
+            center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
+            radius: r,
+            startAngle: .degrees(0),
+            endAngle: .degrees(90),
+            clockwise: false
+        )
+        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+        path.addArc(
+            center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
+            radius: r,
+            startAngle: .degrees(90),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+
+        if arrowEdge != .leading {
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        } else {
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        }
+
+        path.addArc(
+            center: CGPoint(x: rect.minX + r, y: rect.minY + r),
+            radius: r,
+            startAngle: .degrees(180),
+            endAngle: .degrees(270),
+            clockwise: false
+        )
+        return path
+    }
+}
+
+private struct PopoverArrowOutlineShape: Shape {
+    let pointsLeft: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        if pointsLeft {
+            path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        } else {
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        }
+        return path
     }
 }
 
@@ -946,59 +1383,6 @@ private struct DayColumnHeader: View {
                 .fill(isToday ? Color(hex: "#005cc0") : PraxisPalette.border)
                 .frame(height: 2)
         }
-    }
-}
-
-// MARK: - DayCell
-
-private struct DayCell: View {
-    let slot: Int
-    let isToday: Bool
-    let isPlanning: Bool
-    let isOccupied: Bool
-
-    @State private var isHovered = false
-    @State private var didPushCursor = false
-
-    private var isHourBoundary: Bool { slot % 2 == 0 }
-
-    var body: some View {
-        Rectangle()
-            .fill(cellColor)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(isHourBoundary ? Color(hex: "#eaeaea") : Color(hex: "#f3f3f3"))
-                    .frame(height: isHourBoundary ? 1 : 0.5)
-            }
-            .overlay {
-                if isHovered && !isOccupied {
-                    Text("+")
-                        .font(.system(size: 16, weight: .light))
-                        .foregroundStyle(
-                            isPlanning ? Color(hex: "#7c3aed").opacity(0.7)
-                                       : PraxisPalette.primary.opacity(0.55)
-                        )
-                }
-            }
-            .onHover { inside in
-                isHovered = inside
-                if inside && !isOccupied {
-                    NSCursor.pointingHand.push()
-                    didPushCursor = true
-                } else if !inside && didPushCursor {
-                    NSCursor.pop()
-                    didPushCursor = false
-                }
-            }
-    }
-
-    private var cellColor: Color {
-        if isHovered && !isOccupied {
-            return isPlanning ? Color(hex: "#f0e8ff") : Color(hex: "#eef4ff")
-        }
-        if isOccupied { return isToday ? Color(hex: "#fafbff") : .white }
-        if isPlanning { return isToday ? Color(hex: "#faf7ff") : Color(hex: "#faf5ff") }
-        return isToday ? Color(hex: "#fafbff") : .white
     }
 }
 

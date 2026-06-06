@@ -27,21 +27,18 @@ final class CalendarTests: XCTestCase {
     // MARK: - gridHeight
 
     func testGridHeightTherapy50min() {
-        // ceil(50/30) = 2 slots × 30 - 2 = 58
         let appt = makeAppointment(time: "09:00", durationMinutes: 50)
-        XCTAssertEqual(appt.gridHeight, 58)
+        XCTAssertEqual(appt.gridHeight, 50)
     }
 
     func testGridHeightProbatorik100min() {
-        // ceil(100/30) = 4 slots × 30 - 2 = 118
         let appt = makeAppointment(time: "09:00", durationMinutes: 100)
-        XCTAssertEqual(appt.gridHeight, 118)
+        XCTAssertEqual(appt.gridHeight, 100)
     }
 
     func testGridHeightTelefonat20min() {
-        // ceil(20/30) = 1 slot × 30 - 2 = 28
         let appt = makeAppointment(time: "09:00", durationMinutes: 20)
-        XCTAssertEqual(appt.gridHeight, 28)
+        XCTAssertEqual(appt.gridHeight, 20)
     }
 
     // MARK: - MockData.duration(for:)
@@ -136,5 +133,74 @@ final class CalendarStoreTests: XCTestCase {
         store.enterPlanningMode(patientID: store.patients.first!.id)
         store.exitPlanningMode()
         XCTAssertNil(store.planningPatientID)
+    }
+
+    func testCreateAppointmentFromCalendarOnceCreatesSingleAppointment() {
+        let patientID = weberPatientID()
+        store.calendarDraft = AppStore.CalendarDraft(
+            patientID: patientID,
+            type: "Telefonat",
+            recurrence: "Einmalig"
+        )
+
+        store.createAppointmentFromCalendar(
+            patientID: patientID,
+            isoDate: "2026-06-02",
+            time: "08:30"
+        )
+
+        let created = createdAppointments(patientID: patientID, type: "Telefonat", time: "08:30")
+        XCTAssertEqual(created.map(\.sessionNumber), [3])
+        XCTAssertEqual(created.map(\.isoDate), ["2026-06-02"])
+    }
+
+    func testCreateAppointmentFromCalendarWeeklyCreatesSeriesUntilSessionLimit() {
+        let patientID = weberPatientID()
+        store.calendarDraft = AppStore.CalendarDraft(
+            patientID: patientID,
+            type: "Therapiesitzung",
+            recurrence: "Wöchentlich"
+        )
+
+        store.createAppointmentFromCalendar(
+            patientID: patientID,
+            isoDate: "2026-06-02",
+            time: "09:30"
+        )
+
+        let created = createdAppointments(patientID: patientID, type: "Therapiesitzung", time: "09:30")
+        XCTAssertEqual(created.map(\.sessionNumber), [3, 4])
+        XCTAssertEqual(created.map(\.isoDate), ["2026-06-02", "2026-06-09"])
+    }
+
+    func testCreateAppointmentFromCalendarBiweeklyUsesFourteenDaySpacing() {
+        let patientID = weberPatientID()
+        store.calendarDraft = AppStore.CalendarDraft(
+            patientID: patientID,
+            type: "Telefonat",
+            recurrence: "Zweiwöchentlich"
+        )
+
+        store.createAppointmentFromCalendar(
+            patientID: patientID,
+            isoDate: "2026-06-02",
+            time: "10:30"
+        )
+
+        let created = createdAppointments(patientID: patientID, type: "Telefonat", time: "10:30")
+        XCTAssertEqual(created.map(\.sessionNumber), [3, 4])
+        XCTAssertEqual(created.map(\.isoDate), ["2026-06-02", "2026-06-16"])
+    }
+
+    private func weberPatientID() -> UUID {
+        store.patients.first { $0.lastName == "Weber" }!.id
+    }
+
+    private func createdAppointments(patientID: UUID, type: String, time: String) -> [AppointmentRecord] {
+        store.patients
+            .first { $0.id == patientID }!
+            .appointments
+            .filter { $0.type == type && $0.time == time }
+            .sorted { ($0.sessionNumber ?? 0) < ($1.sessionNumber ?? 0) }
     }
 }

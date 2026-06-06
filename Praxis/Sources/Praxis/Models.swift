@@ -1007,10 +1007,9 @@ extension AppointmentRecord {
         return CGFloat(max(0, (h - 8) * 60 + m))
     }
 
-    /// Block height: ceil(durationMinutes / 30) × 30 − 2 px.
+    /// Block height: 1 px = 1 minute, matching the grid's vertical scale.
     var gridHeight: CGFloat {
-        let slots = Int(ceil(Double(durationMinutes) / 30.0))
-        return CGFloat(slots * 30 - 2)
+        CGFloat(max(1, durationMinutes))
     }
 }
 

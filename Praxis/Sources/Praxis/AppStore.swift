@@ -491,41 +491,67 @@ final class AppStore {
         let duration = MockData.duration(for: type)
         let nextNumber = (patients[pIdx].appointments.compactMap(\.sessionNumber).max()
             ?? patients[pIdx].sessionCount) + 1
+        let recurrence = calendarDraft.recurrence
 
         let dateFmt = DateFormatter()
         dateFmt.locale = Locale(identifier: "en_US_POSIX")
         dateFmt.dateFormat = "yyyy-MM-dd"
-        let date = dateFmt.date(from: isoDate) ?? Date()
+        let startDate = dateFmt.date(from: isoDate) ?? Date()
 
         let labelFmt = DateFormatter()
         labelFmt.locale = Locale(identifier: "de_DE")
         labelFmt.dateFormat = "EEEE, d. MMMM"
-        let dateLabel = labelFmt.string(from: date)
 
         let monthFmt = DateFormatter()
         monthFmt.locale = Locale(identifier: "de_DE")
         monthFmt.dateFormat = "MMM"
-        let month = monthFmt.string(from: date)
-        let dayNumber = String(Calendar.current.component(.day, from: date))
 
-        let appointment = AppointmentRecord(
-            isoDate: isoDate,
-            dateLabel: dateLabel,
-            dayNumber: dayNumber,
-            month: month,
-            time: time,
-            durationMinutes: duration,
-            title: "\(type) #\(nextNumber)",
-            type: type,
-            sessionNumber: nextNumber,
-            status: .geplant,
-            note: "",
-            isPast: false
-        )
-        patients[pIdx].appointments.insert(appointment, at: 0)
-        patients[pIdx].nextAppointmentText = "\(appointment.dateLabel) · \(time)"
-        try? PatientRepository.insertAppointment(appointment, patientID: patientID)
+        let cal = Calendar(identifier: .iso8601)
+        let intervalDays = recurrenceDayInterval(for: recurrence)
+        let finalNumber = intervalDays == nil
+            ? nextNumber
+            : max(nextNumber, patients[pIdx].sessionLimit)
+
+        let appointments: [AppointmentRecord] = (nextNumber...finalNumber).compactMap { number in
+            let offsetDays = intervalDays.map { (number - nextNumber) * $0 } ?? 0
+            guard let date = cal.date(byAdding: .day, value: offsetDays, to: startDate) else { return nil }
+            let appointmentISODate = dateFmt.string(from: date)
+            let dateLabel = labelFmt.string(from: date)
+            let month = monthFmt.string(from: date)
+            let dayNumber = String(cal.component(.day, from: date))
+
+            return AppointmentRecord(
+                isoDate: appointmentISODate,
+                dateLabel: dateLabel,
+                dayNumber: dayNumber,
+                month: month,
+                time: time,
+                durationMinutes: duration,
+                title: "\(type) #\(number)",
+                type: type,
+                sessionNumber: number,
+                status: .geplant,
+                note: "",
+                isPast: false
+            )
+        }
+
+        patients[pIdx].appointments.insert(contentsOf: appointments, at: 0)
+        if let firstAppointment = appointments.first {
+            patients[pIdx].nextAppointmentText = "\(firstAppointment.dateLabel) · \(time)"
+        }
+        for appointment in appointments {
+            try? PatientRepository.insertAppointment(appointment, patientID: patientID)
+        }
         calendarDraft = CalendarDraft()
+    }
+
+    private func recurrenceDayInterval(for recurrence: String) -> Int? {
+        switch recurrence {
+        case "Wöchentlich": return 7
+        case "Zweiwöchentlich": return 14
+        default: return nil
+        }
     }
 
     func markAppointmentAbgesagt(appointmentID: UUID, patientID: UUID) {
