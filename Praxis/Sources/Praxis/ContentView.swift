@@ -1075,12 +1075,13 @@ private struct TermineTab: View {
 
 private struct DokumenteTab: View {
     @Environment(AppStore.self) private var store
+    @State private var isDropTargeted = false
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 PrimaryIconButton("Hochladen", systemImage: "arrow.up") {
-                    store.addUploadedDocument()
+                    store.showDocumentImporter = true
                 }
                 SearchField("Dokumente suchen…", text: Binding(get: { store.documentSearchText }, set: { store.documentSearchText = $0 }), compact: true)
                     .frame(maxWidth: 220)
@@ -1116,24 +1117,49 @@ private struct DokumenteTab: View {
                 .padding(.top, 10)
             }
 
-            Button {} label: {
+            VStack(spacing: 0) {
                 HStack(spacing: 8) {
-                    Image(systemName: "plus")
-                    Text("Dateien hierher ziehen oder klicken zum Hochladen")
+                    Image(systemName: isDropTargeted ? "arrow.down.circle.fill" : "plus")
+                    Text("PDF hierher ziehen oder klicken zum Hochladen")
                 }
                 .font(.system(size: 13))
-                .foregroundStyle(Color(hex: "#aaaaaa"))
+                .foregroundStyle(isDropTargeted ? PraxisPalette.primary : Color(hex: "#aaaaaa"))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(Color(hex: "#d0d8f0"), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                        .strokeBorder(
+                            isDropTargeted ? PraxisPalette.primary : Color(hex: "#d0d8f0"),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
+                        )
                 )
             }
-            .buttonStyle(.plain)
-            .interactiveHover(cornerRadius: 10)
+            .contentShape(Rectangle())
+            .onTapGesture { store.showDocumentImporter = true }
+            .onDrop(of: [.pdf], isTargeted: $isDropTargeted) { providers in
+                for provider in providers {
+                    provider.loadFileRepresentation(forTypeIdentifier: "com.adobe.pdf") { url, _ in
+                        guard let url, let data = try? Data(contentsOf: url) else { return }
+                        let filename = url.lastPathComponent
+                        DispatchQueue.main.async { store.importDocument(data: data, filename: filename) }
+                    }
+                }
+                return true
+            }
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
+        }
+        .fileImporter(
+            isPresented: Binding(
+                get: { store.showDocumentImporter },
+                set: { store.showDocumentImporter = $0 }
+            ),
+            allowedContentTypes: [.pdf],
+            allowsMultipleSelection: true
+        ) { result in
+            if case .success(let urls) = result {
+                store.importDocuments(from: urls)
+            }
         }
     }
 }
@@ -2403,6 +2429,7 @@ private struct FilterPill: View {
 
 private struct DocumentRow: View {
     let document: PatientDocument
+    @Environment(AppStore.self) private var store
 
     var body: some View {
         HStack(spacing: 12) {
@@ -2426,8 +2453,7 @@ private struct DocumentRow: View {
                 .foregroundStyle(Color(hex: "#aaaaaa"))
                 .frame(width: 68, alignment: .trailing)
             Menu {
-                Button("Umbenennen") {}
-                Button("Löschen") {}
+                Button("Öffnen") { store.openDocument(document) }
             } label: {
                 Text("•••")
                     .font(.system(size: 12))
@@ -2443,6 +2469,7 @@ private struct DocumentRow: View {
                 .fill(PraxisPalette.field)
                 .stroke(PraxisPalette.border, lineWidth: 1)
         )
+        .onTapGesture(count: 2) { store.openDocument(document) }
         .interactiveHover(cornerRadius: 9)
     }
 

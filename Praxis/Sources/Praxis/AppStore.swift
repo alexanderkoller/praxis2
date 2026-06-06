@@ -1,5 +1,7 @@
+import AppKit
 import Foundation
 import Observation
+import PDFKit
 
 private func praxisTodayDateString() -> String {
     let fmt = DateFormatter()
@@ -51,6 +53,9 @@ final class AppStore {
     var selectedPatientID: UUID = UUID()
     var selectedAppointmentID: UUID? = nil
     var selectedSessionID: UUID? = nil
+    var showDocumentImporter = false
+
+    @ObservationIgnored private var pdfWindowControllers: [PDFWindowController] = []
 
     @ObservationIgnored private var questionnaireServer: QuestionnaireServer? = nil
     @ObservationIgnored private var _saveSessionTask: Task<Void, Never>? = nil
@@ -400,16 +405,27 @@ final class AppStore {
 
     // MARK: - Documents
 
-    func addUploadedDocument() {
+    func importDocuments(from urls: [URL]) {
+        for url in urls {
+            _ = url.startAccessingSecurityScopedResource()
+            defer { url.stopAccessingSecurityScopedResource() }
+            guard let data = try? Data(contentsOf: url) else { continue }
+            importDocument(data: data, filename: url.lastPathComponent)
+        }
+    }
+
+    func importDocument(data: Data, filename: String) {
+        let patientID = selectedPatientID
         let document = PatientDocument(
-            filename: "Upload_\(Int.random(in: 100...999)).pdf",
+            filename: filename,
             fileType: "PDF",
-            size: "64 KB",
+            size: Self.formatFileSize(data.count),
             source: "hochgeladen",
             category: .sonstiges,
             date: currentDateLabel(),
             year: String(Calendar.current.component(.year, from: Date()))
         )
+        guard (try? DocumentStorage.shared.store(data: data, for: document.id)) != nil else { return }
         let event = TimelineEvent(
             date: document.date,
             title: "Dokument hochgeladen",
@@ -420,7 +436,24 @@ final class AppStore {
             $0.documents.insert(document, at: 0)
             $0.timeline.insert(event, at: 0)
         }
-        try? PatientRepository.insertDocument(document, event: event, patientID: selectedPatientID)
+        try? PatientRepository.insertDocument(document, event: event, patientID: patientID)
+    }
+
+    func openDocument(_ document: PatientDocument) {
+        guard let data = try? DocumentStorage.shared.retrieve(for: document.id),
+              let pdf = PDFDocument(data: data) else { return }
+        let controller = PDFWindowController(document: pdf, filename: document.filename)
+        pdfWindowControllers.append(controller)
+        controller.onClose = { [weak self, weak controller] in
+            self?.pdfWindowControllers.removeAll { $0 === controller }
+        }
+        controller.showWindow(nil)
+    }
+
+    private static func formatFileSize(_ count: Int) -> String {
+        if count < 1024 { return "\(count) B" }
+        else if count < 1_048_576 { return "\(count / 1024) KB" }
+        else { return String(format: "%.1f MB", Double(count) / 1_048_576) }
     }
 
     // MARK: - Questionnaires
