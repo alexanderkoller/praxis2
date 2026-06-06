@@ -171,6 +171,7 @@ final class AppStore {
         selectedPatientID = id
         selectedAppointmentID = selectedPatient.appointments.first?.id
         selectedSessionID = selectedPatient.sessions.first?.id
+        patientTab = .uebersicht
     }
 
     func selectPatientByAppointment(_ appointmentID: UUID) {
@@ -228,6 +229,13 @@ final class AppStore {
     func removeDiagnosis(_ diagnosisID: UUID) {
         updateSelectedPatient { $0.diagnoses.removeAll { $0.id == diagnosisID } }
         try? PatientRepository.deleteDiagnosis(id: diagnosisID)
+    }
+
+    func updateDiagnosis(_ diagnosisID: UUID, _ mutate: (inout Diagnosis) -> Void) {
+        guard let idx = selectedPatient.diagnoses.firstIndex(where: { $0.id == diagnosisID }) else { return }
+        updateSelectedPatient { mutate(&$0.diagnoses[idx]) }
+        let updated = selectedPatient.diagnoses.first(where: { $0.id == diagnosisID })!
+        try? PatientRepository.updateDiagnosis(updated, patientID: selectedPatientID)
     }
 
     // MARK: - Safety flags
@@ -298,7 +306,7 @@ final class AppStore {
             type: "Verhaltenstherapie",
             date: currentDateLabel(),
             durationMinutes: 50,
-            topics: ["Neues Thema"],
+            topics: [],
             interventions: [],
             homework: "",
             note: "",

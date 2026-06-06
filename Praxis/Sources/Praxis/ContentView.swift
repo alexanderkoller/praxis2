@@ -625,6 +625,8 @@ private struct AnamneseTab: View {
                         ForEach(store.selectedPatient.diagnoses) { diagnosis in
                             DiagnosisRow(diagnosis: diagnosis) {
                                 store.removeDiagnosis(diagnosis.id)
+                            } onUpdate: { keyPath, value in
+                                store.updateDiagnosis(diagnosis.id) { $0[keyPath: keyPath] = value }
                             }
                         }
                     }
@@ -1840,6 +1842,9 @@ private struct InsurancePill: View {
 private struct DiagnosisRow: View {
     let diagnosis: Diagnosis
     let onRemove: () -> Void
+    let onUpdate: (WritableKeyPath<Diagnosis, String>, String) -> Void
+
+    private static let statusOptions = ["Gesichert", "Verdacht", "Ausschluss", "Zustand nach"]
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -1862,9 +1867,27 @@ private struct DiagnosisRow: View {
                             .textCase(.uppercase)
                     }
                 }
-                Text("\(diagnosis.statusText) · seit \(diagnosis.since)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(PraxisPalette.subtleText)
+                HStack(spacing: 0) {
+                    Menu {
+                        ForEach(Self.statusOptions, id: \.self) { option in
+                            Button(option) { onUpdate(\.statusText, option) }
+                        }
+                    } label: {
+                        Text(diagnosis.statusText)
+                            .font(.system(size: 11))
+                            .foregroundStyle(PraxisPalette.subtleText)
+                    }
+                    .buttonStyle(.plain)
+                    .interactiveHover(cornerRadius: 4, lift: false)
+                    Text(" · seit ")
+                        .font(.system(size: 11))
+                        .foregroundStyle(PraxisPalette.subtleText)
+                    EditableInlineText(
+                        text: diagnosis.since,
+                        font: .system(size: 11),
+                        foreground: PraxisPalette.subtleText
+                    ) { onUpdate(\.since, $0) }
+                }
             }
             Spacer(minLength: 0)
             Button("×", action: onRemove)
@@ -2188,6 +2211,7 @@ private struct GOPEntryCard: View {
     let entry: GOPEntry
     let onFactorChange: (Double) -> Void
     let onRemove: () -> Void
+    @State private var hoveredFactor: Double? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -2210,16 +2234,25 @@ private struct GOPEntryCard: View {
             HStack {
                 HStack(spacing: 3) {
                     ForEach(entry.availableFactors, id: \.self) { factor in
+                        let isSelected = entry.factor == factor
+                        let isHovered = hoveredFactor == factor
                         Button(String(format: "%.1f", factor)) {
                             onFactorChange(factor)
                         }
                         .buttonStyle(.plain)
-                        .font(.system(size: 11, weight: entry.factor == factor ? .semibold : .medium))
-                        .foregroundStyle(entry.factor == factor ? .white : Color(hex: "#555555"))
+                        .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+                        .foregroundStyle(isSelected ? .white : (isHovered ? PraxisPalette.primary : Color(hex: "#555555")))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
-                        .background(RoundedRectangle(cornerRadius: 5).fill(entry.factor == factor ? PraxisPalette.primary : .white))
-                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(entry.factor == factor ? PraxisPalette.primary : Color(hex: "#e0e0e8"), lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 5).fill(isSelected ? PraxisPalette.primary : (isHovered ? Color(hex: "#eaf0ff") : .white)))
+                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(isSelected ? PraxisPalette.primary : (isHovered ? PraxisPalette.primary.opacity(0.5) : Color(hex: "#e0e0e8")), lineWidth: 1))
+                        .animation(.easeOut(duration: 0.1), value: isHovered)
+                        .onHover { hovering in
+                            hoveredFactor = hovering ? factor : nil
+                            #if os(macOS)
+                            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                            #endif
+                        }
                     }
                 }
                 Spacer(minLength: 0)

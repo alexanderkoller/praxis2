@@ -208,6 +208,21 @@ enum PatientRepository {
         }
     }
 
+    static func updateDiagnosis(_ d: Diagnosis, patientID: UUID) throws {
+        try activeQueue.write { db in
+            let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM diagnoses WHERE id = ?",
+                                             arguments: [d.id.uuidString])
+            try DiagnosisRecord(d, patientID: patientID).save(db)
+            let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM diagnoses WHERE id = ?",
+                                            arguments: [d.id.uuidString])
+            try AuditLog.append(db: db, eventType: "diagnosis.updated",
+                entityTable: "diagnoses", entityID: d.id.uuidString,
+                patientID: patientID.uuidString,
+                payload: AuditLog.diff(before: AuditLog.rowDict(beforeRow),
+                                       after:  AuditLog.rowDict(afterRow)))
+        }
+    }
+
     // MARK: - Medications
 
     static func insertMedication(_ m: Medication, patientID: UUID) throws {
