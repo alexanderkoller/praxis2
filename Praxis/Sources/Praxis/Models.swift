@@ -442,19 +442,12 @@ struct TimelineEvent: Identifiable {
         case document = "document"
     }
 
-    let id: UUID
+    var id: UUID { sourceID }
+    var sourceID: UUID  // ID of the referenced session / questionnaire result / document
     var date: String
     var title: String
     var subtitle: String
     var kind: Kind
-
-    init(id: UUID = UUID(), date: String, title: String, subtitle: String, kind: Kind) {
-        self.id = id
-        self.date = date
-        self.title = title
-        self.subtitle = subtitle
-        self.kind = kind
-    }
 }
 
 struct Patient: Identifiable {
@@ -485,7 +478,12 @@ struct Patient: Identifiable {
     var patientSince: String
     var sessionCount: Int
     var sessionLimit: Int
-    var badgeText: String
+    var badgeText: String {
+        switch insuranceType {
+        case .selbstzahler: return "Selbstzahler"
+        default: return insurer.isEmpty ? insuranceType.rawValue : "\(insuranceType.rawValue) · \(insurer)"
+        }
+    }
     var agendaSubtitle: String
     var nextAppointmentText: String
     var overviewNotes: String
@@ -500,7 +498,6 @@ struct Patient: Identifiable {
     var appointments: [AppointmentRecord]
     var questionnaireResults: [QuestionnaireResultRecord]
     var documents: [PatientDocument]
-    var timeline: [TimelineEvent]
     var avatarStartHex: String
     var avatarEndHex: String
 
@@ -514,6 +511,32 @@ struct Patient: Identifiable {
 
     var initials: String {
         String(firstName.prefix(1)) + String(lastName.prefix(1))
+    }
+
+    var timeline: [TimelineEvent] {
+        var pairs: [(iso: String, event: TimelineEvent)] = []
+        for s in sessions {
+            pairs.append((s.date, TimelineEvent(
+                sourceID: s.id, date: s.date.formattedAsDate,
+                title: "Sitzung #\(s.number)",
+                subtitle: s.topics.prefix(2).joined(separator: " · "),
+                kind: .session)))
+        }
+        for r in questionnaireResults {
+            pairs.append((r.date, TimelineEvent(
+                sourceID: r.id, date: r.date.formattedAsDate,
+                title: "\(r.questionnaireName) eingegangen",
+                subtitle: "Score \(r.score) · \(r.tier.rawValue)",
+                kind: .questionnaire)))
+        }
+        for d in documents where !d.isArchived {
+            pairs.append((d.date, TimelineEvent(
+                sourceID: d.id, date: d.date.formattedAsDate,
+                title: d.filename,
+                subtitle: "\(d.fileType) · \(d.category.rawValue)",
+                kind: .document)))
+        }
+        return pairs.sorted { $0.iso > $1.iso }.map(\.event)
     }
 }
 
@@ -568,7 +591,6 @@ enum MockData {
             patientSince: "März 2024",
             sessionCount: 8,
             sessionLimit: 45,
-            badgeText: "GKV · TK",
             agendaSubtitle: "geb. 14.03.1978 · Sitzung #8 · 10:00–10:50 Uhr",
             nextAppointmentText: "Heute · 10:00 Uhr",
             overviewNotes: "Patient sehr pünktlich, schätzt klare Struktur. Reagiert empfindlich auf direktive Interventionen, deshalb eher validierend und kleinschrittig arbeiten. Berufssituation mit Konflikt zum Vorgesetzten bleibt das dominierende Thema.",
@@ -593,7 +615,7 @@ enum MockData {
                     number: 8,
                     shortType: "VT",
                     type: "Verhaltenstherapie",
-                    date: "Do. 5. Juni 2025",
+                    date: "2025-06-05",
                     durationMinutes: 50,
                     topics: ["Schlaf", "Grübeln"],
                     interventions: ["Kognitive Umstrukturierung", "Aktivitätsaufbau"],
@@ -607,7 +629,7 @@ enum MockData {
                     number: 7,
                     shortType: "VT",
                     type: "Verhaltenstherapie",
-                    date: "Do. 29. Mai 2025",
+                    date: "2025-05-29",
                     durationMinutes: 50,
                     topics: ["Kog. Umstr."],
                     interventions: ["Sokratischer Dialog"],
@@ -621,7 +643,7 @@ enum MockData {
                     number: 6,
                     shortType: "VT",
                     type: "Verhaltenstherapie",
-                    date: "Do. 22. Mai 2025",
+                    date: "2025-05-22",
                     durationMinutes: 50,
                     topics: ["Arbeit", "Selbstwert"],
                     interventions: ["Ressourcenarbeit"],
@@ -640,37 +662,31 @@ enum MockData {
                 AppointmentRecord(dateLabel: "Donnerstag, 8. Mai", dayNumber: "8", month: "Mai", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #5", type: "Verhaltenstherapie", sessionNumber: 5, status: .abgesagt, isPast: true)
             ],
             questionnaireResults: [
-                QuestionnaireResultRecord(questionnaireName: "PHQ-9", description: "Depressivität", date: "05.06.2025", sessionLabel: "Sitzung #8", score: 11, maxScore: 27, tier: .mittel, answers: [
+                QuestionnaireResultRecord(questionnaireName: "PHQ-9", description: "Depressivität", date: "2025-06-05", sessionLabel: "Sitzung #8", score: 11, maxScore: 27, tier: .mittel, answers: [
                     QuestionnaireAnswer(question: "Wenig Interesse oder Freude", answer: "An mehreren Tagen", score: 1),
                     QuestionnaireAnswer(question: "Niedergeschlagenheit", answer: "Mehr als die Hälfte der Tage", score: 2),
                     QuestionnaireAnswer(question: "Schlafprobleme", answer: "Mehr als die Hälfte der Tage", score: 2),
                     QuestionnaireAnswer(question: "Energieverlust", answer: "An mehreren Tagen", score: 1)
                 ]),
-                QuestionnaireResultRecord(questionnaireName: "PHQ-9", description: "Depressivität", date: "22.05.2025", sessionLabel: "Sitzung #7", score: 14, maxScore: 27, tier: .mittelPlus, answers: [
+                QuestionnaireResultRecord(questionnaireName: "PHQ-9", description: "Depressivität", date: "2025-05-22", sessionLabel: "Sitzung #7", score: 14, maxScore: 27, tier: .mittelPlus, answers: [
                     QuestionnaireAnswer(question: "Wenig Interesse oder Freude", answer: "Mehr als die Hälfte der Tage", score: 2),
                     QuestionnaireAnswer(question: "Niedergeschlagenheit", answer: "Mehr als die Hälfte der Tage", score: 2)
                 ]),
-                QuestionnaireResultRecord(questionnaireName: "PHQ-9", description: "Depressivität", date: "08.05.2025", sessionLabel: "Sitzung #6", score: 19, maxScore: 27, tier: .schwer, answers: [
+                QuestionnaireResultRecord(questionnaireName: "PHQ-9", description: "Depressivität", date: "2025-05-08", sessionLabel: "Sitzung #6", score: 19, maxScore: 27, tier: .schwer, answers: [
                     QuestionnaireAnswer(question: "Wenig Interesse oder Freude", answer: "Beinahe jeden Tag", score: 3),
                     QuestionnaireAnswer(question: "Niedergeschlagenheit", answer: "Beinahe jeden Tag", score: 3)
                 ]),
-                QuestionnaireResultRecord(questionnaireName: "GAD-7", description: "Angst", date: "05.06.2025", sessionLabel: "Sitzung #8", score: 7, maxScore: 21, tier: .leicht, answers: [
+                QuestionnaireResultRecord(questionnaireName: "GAD-7", description: "Angst", date: "2025-06-05", sessionLabel: "Sitzung #8", score: 7, maxScore: 21, tier: .leicht, answers: [
                     QuestionnaireAnswer(question: "Nervosität", answer: "An mehreren Tagen", score: 1),
                     QuestionnaireAnswer(question: "Sorgen nicht stoppen", answer: "An mehreren Tagen", score: 1)
                 ])
             ],
             documents: [
-                PatientDocument(filename: "Arztbrief_Dr-Meier_2025-05-12.pdf", fileType: "PDF", size: "42 KB", source: "von Dr. Meier", category: .extern, date: "12.05.2025", year: "2025"),
-                PatientDocument(filename: "Zwischenbericht_Sitzung7.docx", fileType: "DOCX", size: "18 KB", source: "erstellt von Therapeut", category: .bericht, date: "29.05.2025", year: "2025"),
-                PatientDocument(filename: "Einwilligungserklärung_Datenschutz.pdf", fileType: "PDF", size: "95 KB", source: "unterschrieben", category: .einwilligung, date: "03.01.2025", year: "2025"),
-                PatientDocument(filename: "Gutachten_Erstantrag_KZT.pdf", fileType: "PDF", size: "128 KB", source: "Antrag Kurzzeittherapie", category: .gutachten, date: "15.01.2025", year: "2025"),
-                PatientDocument(filename: "Abschlussbericht_Vorbehandlung.pdf", fileType: "PDF", size: "67 KB", source: "Praxis Becker", category: .extern, date: "14.11.2024", year: "2024")
-            ],
-            timeline: [
-                TimelineEvent(date: "05.06.2025", title: "Sitzung #8", subtitle: "Schlaf · Grübeln", kind: .session),
-                TimelineEvent(date: "05.06.2025", title: "PHQ-9 eingegangen", subtitle: "Score 11 · Mittelgradig", kind: .questionnaire),
-                TimelineEvent(date: "29.05.2025", title: "Zwischenbericht erstellt", subtitle: "DOCX · Bericht", kind: .document),
-                TimelineEvent(date: "29.05.2025", title: "Sitzung #7", subtitle: "Kognitive Umstrukturierung", kind: .session)
+                PatientDocument(filename: "Arztbrief_Dr-Meier_2025-05-12.pdf", fileType: "PDF", size: "42 KB", source: "von Dr. Meier", category: .extern, date: "2025-05-12", year: "2025"),
+                PatientDocument(filename: "Zwischenbericht_Sitzung7.docx", fileType: "DOCX", size: "18 KB", source: "erstellt von Therapeut", category: .bericht, date: "2025-05-29", year: "2025"),
+                PatientDocument(filename: "Einwilligungserklärung_Datenschutz.pdf", fileType: "PDF", size: "95 KB", source: "unterschrieben", category: .einwilligung, date: "2025-01-03", year: "2025"),
+                PatientDocument(filename: "Gutachten_Erstantrag_KZT.pdf", fileType: "PDF", size: "128 KB", source: "Antrag Kurzzeittherapie", category: .gutachten, date: "2025-01-15", year: "2025"),
+                PatientDocument(filename: "Abschlussbericht_Vorbehandlung.pdf", fileType: "PDF", size: "67 KB", source: "Praxis Becker", category: .extern, date: "2024-11-14", year: "2024")
             ],
             avatarStartHex: "#5e9cf5",
             avatarEndHex: "#3478f6"
@@ -703,7 +719,6 @@ enum MockData {
             patientSince: "Januar 2025",
             sessionCount: 12,
             sessionLimit: 25,
-            badgeText: "PKV · DKV",
             agendaSubtitle: "geb. 22.07.1985 · Sitzung #12 · 09:00–09:50 Uhr",
             nextAppointmentText: "Mo. 09.06. · 10:00",
             overviewNotes: "Belastung durch Care-Arbeit und Erschöpfung. Gute Mitarbeit, wünscht konkrete Übungen für den Alltag.",
@@ -717,19 +732,16 @@ enum MockData {
             medications: [],
             priorTreatments: [],
             sessions: [
-                SessionRecord(number: 12, shortType: "VT", type: "Verhaltenstherapie", date: "Do. 5. Juni 2025", durationMinutes: 50, topics: ["Erschöpfung"], interventions: ["Pacing"], homework: "Belastungsampel führen", note: "Fokus auf Selbstfürsorge und Priorisierung.", gopEntries: [GOPEntry(code: "870", description: "Psychotherapeutische Behandlung, Einzelbehandlung, 50 Minuten", factor: 2.3, basePrice: 40.22)])
+                SessionRecord(number: 12, shortType: "VT", type: "Verhaltenstherapie", date: "2025-06-05", durationMinutes: 50, topics: ["Erschöpfung"], interventions: ["Pacing"], homework: "Belastungsampel führen", note: "Fokus auf Selbstfürsorge und Priorisierung.", gopEntries: [GOPEntry(code: "870", description: "Psychotherapeutische Behandlung, Einzelbehandlung, 50 Minuten", factor: 2.3, basePrice: 40.22)])
             ],
             appointments: [
                 AppointmentRecord(dateLabel: "Donnerstag, 5. Juni", dayNumber: "5", month: "Jun", time: "09:00", durationMinutes: 50, title: "Therapiesitzung #12", type: "Verhaltenstherapie", sessionNumber: 12, status: .erfolgt, isPast: true),
                 AppointmentRecord(dateLabel: "Montag, 9. Juni", dayNumber: "9", month: "Jun", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #13", type: "Verhaltenstherapie", sessionNumber: 13, status: .geplant, isPast: false)
             ],
             questionnaireResults: [
-                QuestionnaireResultRecord(questionnaireName: "WHO-5", description: "Wohlbefinden", date: "05.06.2025", sessionLabel: "Sitzung #12", score: 13, maxScore: 25, tier: .leicht, answers: [QuestionnaireAnswer(question: "Ich war fröhlich", answer: "Etwas mehr als die Hälfte der Zeit", score: 2)])
+                QuestionnaireResultRecord(questionnaireName: "WHO-5", description: "Wohlbefinden", date: "2025-06-05", sessionLabel: "Sitzung #12", score: 13, maxScore: 25, tier: .leicht, answers: [QuestionnaireAnswer(question: "Ich war fröhlich", answer: "Etwas mehr als die Hälfte der Zeit", score: 2)])
             ],
             documents: [],
-            timeline: [
-                TimelineEvent(date: "05.06.2025", title: "Sitzung #12", subtitle: "Pacing", kind: .session)
-            ],
             avatarStartHex: "#f5a623",
             avatarEndHex: "#e67e22"
         ),
@@ -761,7 +773,6 @@ enum MockData {
             patientSince: "Mai 2025",
             sessionCount: 2,
             sessionLimit: 4,
-            badgeText: "GKV · AOK",
             agendaSubtitle: "geb. 08.11.1994 · Probatorik #2 · 12:00–12:50 Uhr",
             nextAppointmentText: "Heute · 12:00 Uhr",
             overviewNotes: "Erstkontaktphase, Anliegen noch breit. Gute Motivation und hohe Reflexionsfähigkeit.",
@@ -773,14 +784,13 @@ enum MockData {
             medications: [],
             priorTreatments: [],
             sessions: [
-                SessionRecord(number: 2, shortType: "Probatorik", type: "Probatorik", date: "Do. 5. Juni 2025", durationMinutes: 50, topics: ["Erstkontakt"], interventions: ["Anamnese"], homework: "Symptomtagebuch beginnen", note: "Probatorische Vertiefung der Symptomgeschichte.", gopEntries: [GOPEntry(code: "801", description: "Probatorische Sitzung", factor: 2.3, basePrice: 34.12)])
+                SessionRecord(number: 2, shortType: "Probatorik", type: "Probatorik", date: "2025-06-05", durationMinutes: 50, topics: ["Erstkontakt"], interventions: ["Anamnese"], homework: "Symptomtagebuch beginnen", note: "Probatorische Vertiefung der Symptomgeschichte.", gopEntries: [GOPEntry(code: "801", description: "Probatorische Sitzung", factor: 2.3, basePrice: 34.12)])
             ],
             appointments: [
                 AppointmentRecord(dateLabel: "Donnerstag, 5. Juni", dayNumber: "5", month: "Jun", time: "12:00", durationMinutes: 50, title: "Probatorik #2", type: "Probatorik", sessionNumber: 2, status: .heute, isPast: false)
             ],
             questionnaireResults: [],
             documents: [],
-            timeline: [],
             avatarStartHex: "#a8e063",
             avatarEndHex: "#56ab2f"
         ),
@@ -812,7 +822,6 @@ enum MockData {
             patientSince: "2023",
             sessionCount: 21,
             sessionLimit: 24,
-            badgeText: "Selbstzahler",
             agendaSubtitle: "geb. 30.01.1970 · zuletzt 29.05.2025",
             nextAppointmentText: "Zuletzt: 29. Mai",
             overviewNotes: "Behandlung abgeschlossen, Verlauf stabil.",
@@ -827,7 +836,6 @@ enum MockData {
             appointments: [],
             questionnaireResults: [],
             documents: [],
-            timeline: [],
             avatarStartHex: "#f093fb",
             avatarEndHex: "#a855f7"
         )
@@ -957,6 +965,16 @@ extension Color {
             blue: Double(b) / 255,
             opacity: Double(a) / 255
         )
+    }
+}
+
+extension String {
+    /// Converts a stored ISO date "yyyy-MM-dd" to the display format "dd.MM.yyyy".
+    /// Returns self unchanged if the string isn't a recognised ISO date.
+    var formattedAsDate: String {
+        let parts = split(separator: "-")
+        guard parts.count == 3, parts[0].count == 4 else { return self }
+        return "\(parts[2]).\(parts[1]).\(parts[0])"
     }
 }
 

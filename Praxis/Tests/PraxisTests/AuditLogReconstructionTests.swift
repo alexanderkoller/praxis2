@@ -286,27 +286,22 @@ final class AuditLogReconstructionTests: XCTestCase {
         XCTAssertEqual(gopEntry.patientID, patientID)
     }
 
-    // Gap 3 — fixed: the timeline event created inside insertDocument is now logged.
-    func testTimelineEventInDocumentIsAuditLogged() throws {
+    // Gap 3 — insertDocument logs document.created; timeline is now computed, not stored.
+    func testDocumentInsertIsAuditLogged() throws {
         let patientID = UUID().uuidString
         try testDB.write { db in try insertPatient(id: patientID, into: db) }
 
         let doc = PatientDocument(filename: "Befund.pdf", fileType: "PDF",
                                   size: "128 KB", source: "Arzt",
                                   category: .bericht, date: "10.06.2024", year: "2024")
-        let event = TimelineEvent(date: "10.06.2024", title: "Befund.pdf",
-                                  subtitle: "Dokument hochgeladen", kind: .document)
-
-        try PatientRepository.insertDocument(doc, event: event,
-                                             patientID: UUID(uuidString: patientID)!)
+        try PatientRepository.insertDocument(doc, patientID: UUID(uuidString: patientID)!)
 
         let entries = try testDB.read { db in try AuditLogEntry.fetchAll(db) }
-        let timelineEntries = entries.filter { $0.entityTable == "timeline_events" }
-        XCTAssertEqual(timelineEntries.count, 1,
-            "Expected a timeline_event audit entry for the event created inside insertDocument")
-        let te = try XCTUnwrap(timelineEntries.first)
-        XCTAssertEqual(te.entityID, event.id.uuidString)
-        XCTAssertEqual(te.patientID, patientID)
+        let docEntries = entries.filter { $0.entityTable == "documents" }
+        XCTAssertEqual(docEntries.count, 1, "Expected a document.created audit entry")
+        let de = try XCTUnwrap(docEntries.first)
+        XCTAssertEqual(de.entityID, doc.id.uuidString)
+        XCTAssertEqual(de.patientID, patientID)
     }
 
     // Gap 6 — fixed: all three GOP operations now carry patientID in the audit log.
@@ -407,13 +402,11 @@ final class AuditLogReconstructionTests: XCTestCase {
             score: 4, maxScore: 27, tier: .minimal, answers: [])
         try PatientRepository.insertQuestionnaireResult(result, answers: answers, patientID: pid)
 
-        // ── document (also creates a timeline event) ───────────────────────
+        // ── document ──────────────────────────────────────────────────────
         let doc = PatientDocument(filename: "Bericht.pdf", fileType: "PDF",
                                   size: "256 KB", source: "Arzt",
                                   category: .bericht, date: "10.06.2024", year: "2024")
-        let docEvent = TimelineEvent(date: "10.06.2024", title: "Bericht.pdf",
-                                     subtitle: "Dokument", kind: .document)
-        try PatientRepository.insertDocument(doc, event: docEvent, patientID: pid)
+        try PatientRepository.insertDocument(doc, patientID: pid)
 
         // ── Reconstruct onto a fresh replica ──────────────────────────────
         // Use rowid ordering: within the same transaction all entries share an occurredAt
@@ -437,7 +430,7 @@ final class AuditLogReconstructionTests: XCTestCase {
         let tables = ["diagnoses", "medications", "prior_treatments",
                       "sessions", "gop_entries", "appointments",
                       "questionnaire_results", "questionnaire_answers",
-                      "documents", "timeline_events"]
+                      "documents"]
         for table in tables {
             let srcRows = try testDB.read { db in
                 try Row.fetchAll(db, sql: "SELECT * FROM \"\(table)\" ORDER BY id")

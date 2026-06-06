@@ -32,7 +32,6 @@ enum PatientRepository {
             let appointments   = try AppointmentRecord_DB.filter(ids.contains(Column("patientID"))).fetchAll(db)
             let qResults       = try QuestionnaireResultRecord_DB.filter(ids.contains(Column("patientID"))).fetchAll(db)
             let documents      = try DocumentRecord.filter(ids.contains(Column("patientID"))).fetchAll(db)
-            let timelineEvents = try TimelineEventRecord.filter(ids.contains(Column("patientID"))).fetchAll(db)
 
             let sessionIDs = sessions.map(\.id)
             let gopEntries = sessionIDs.isEmpty ? [] : try GOPEntryRecord.filter(sessionIDs.contains(Column("sessionID"))).fetchAll(db)
@@ -50,8 +49,7 @@ enum PatientRepository {
                     appointments: appointments.filter { $0.patientID == pr.id },
                     qResults: qResults.filter { $0.patientID == pr.id },
                     answers: answers,
-                    documents: documents.filter { $0.patientID == pr.id },
-                    timelineEvents: timelineEvents.filter { $0.patientID == pr.id }
+                    documents: documents.filter { $0.patientID == pr.id }
                 )
             }
         }
@@ -67,8 +65,7 @@ enum PatientRepository {
         appointments: [AppointmentRecord_DB],
         qResults: [QuestionnaireResultRecord_DB],
         answers: [QuestionnaireAnswerRecord],
-        documents: [DocumentRecord],
-        timelineEvents: [TimelineEventRecord]
+        documents: [DocumentRecord]
     ) -> Patient {
         let scalars = pr.toScalars()
         let domainSessions: [SessionRecord] = sessions.map { s in
@@ -111,7 +108,7 @@ enum PatientRepository {
             emergencyPhone: scalars.emergencyPhone,
             patientSince: scalars.patientSince,
             sessionCount: scalars.sessionCount, sessionLimit: scalars.sessionLimit,
-            badgeText: scalars.badgeText, agendaSubtitle: scalars.agendaSubtitle,
+            agendaSubtitle: scalars.agendaSubtitle,
             nextAppointmentText: scalars.nextAppointmentText,
             overviewNotes: scalars.overviewNotes, anamnesisNotes: scalars.anamnesisNotes,
             socialHistory: scalars.socialHistory, familyHistory: scalars.familyHistory,
@@ -123,7 +120,6 @@ enum PatientRepository {
             appointments: appointments.map { $0.toDomain() },
             questionnaireResults: domainResults,
             documents: documents.map { $0.toDomain() },
-            timeline: timelineEvents.map { $0.toDomain() },
             avatarStartHex: scalars.avatarStartHex, avatarEndHex: scalars.avatarEndHex
         )
     }
@@ -147,7 +143,6 @@ enum PatientRepository {
                     for a in r.answers { try QuestionnaireAnswerRecord(a, resultID: r.id).insert(db) }
                 }
                 for d in p.documents    { try DocumentRecord(d, patientID: p.id).insert(db) }
-                for e in p.timeline     { try TimelineEventRecord(e, patientID: p.id).insert(db) }
             }
             try AuditLog.append(db: db, eventType: "data.seeded",
                 payload: ["patientCount": patients.count])
@@ -443,22 +438,15 @@ enum PatientRepository {
 
     // MARK: - Documents & timeline
 
-    static func insertDocument(_ d: PatientDocument, event: TimelineEvent, patientID: UUID) throws {
+    static func insertDocument(_ d: PatientDocument, patientID: UUID) throws {
         try activeQueue.write { db in
             try DocumentRecord(d, patientID: patientID).insert(db)
-            try TimelineEventRecord(event, patientID: patientID).insert(db)
             let afterDoc = try Row.fetchOne(db, sql: "SELECT * FROM documents WHERE id = ?",
                                             arguments: [d.id.uuidString])
             try AuditLog.append(db: db, eventType: "document.created",
                 entityTable: "documents", entityID: d.id.uuidString,
                 patientID: patientID.uuidString,
                 payload: ["after": AuditLog.rowDict(afterDoc)])
-            let afterEvent = try Row.fetchOne(db, sql: "SELECT * FROM timeline_events WHERE id = ?",
-                                              arguments: [event.id.uuidString])
-            try AuditLog.append(db: db, eventType: "timeline_event.created",
-                entityTable: "timeline_events", entityID: event.id.uuidString,
-                patientID: patientID.uuidString,
-                payload: ["after": AuditLog.rowDict(afterEvent)])
         }
     }
 
@@ -477,15 +465,4 @@ enum PatientRepository {
         }
     }
 
-    static func insertTimelineEvent(_ e: TimelineEvent, patientID: UUID) throws {
-        try activeQueue.write { db in
-            try TimelineEventRecord(e, patientID: patientID).insert(db)
-            let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM timeline_events WHERE id = ?",
-                                            arguments: [e.id.uuidString])
-            try AuditLog.append(db: db, eventType: "timeline_event.created",
-                entityTable: "timeline_events", entityID: e.id.uuidString,
-                patientID: patientID.uuidString,
-                payload: ["after": AuditLog.rowDict(afterRow)])
-        }
-    }
 }

@@ -428,17 +428,10 @@ final class AppStore {
             year: String(Calendar.current.component(.year, from: Date()))
         )
         guard (try? DocumentStorage.shared.store(data: data, for: document.id)) != nil else { return }
-        let event = TimelineEvent(
-            date: document.date,
-            title: "Dokument hochgeladen",
-            subtitle: document.filename,
-            kind: .document
-        )
         updateSelectedPatient {
             $0.documents.insert(document, at: 0)
-            $0.timeline.insert(event, at: 0)
         }
-        try? PatientRepository.insertDocument(document, event: event, patientID: patientID)
+        try? PatientRepository.insertDocument(document, patientID: patientID)
     }
 
     func updateDocument(_ documentID: UUID, mutate: (inout PatientDocument) -> Void) {
@@ -520,18 +513,10 @@ final class AppStore {
             tier: tier,
             answers: answerRows
         )
-        let event = TimelineEvent(
-            date: result.date,
-            title: "\(result.questionnaireName) eingegangen",
-            subtitle: "Score \(result.score) · \(result.tier.rawValue)",
-            kind: .questionnaire
-        )
         updateSelectedPatient {
             $0.questionnaireResults.insert(result, at: 0)
-            $0.timeline.insert(event, at: 0)
         }
         try? PatientRepository.insertQuestionnaireResult(result, answers: answerRows, patientID: selectedPatientID)
-        try? PatientRepository.insertTimelineEvent(event, patientID: selectedPatientID)
 
         if var current = qrSession { current.phase = .completed; qrSession = current }
         questionnaireServer?.stop()
@@ -630,8 +615,8 @@ final class AppStore {
 
     private func currentDateLabel() -> String {
         let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "de_DE")
-        fmt.dateFormat = "dd.MM.yyyy"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.dateFormat = "yyyy-MM-dd"
         return fmt.string(from: Date())
     }
 

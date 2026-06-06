@@ -337,12 +337,7 @@ private struct PatientHeader: View {
             Spacer(minLength: 12)
 
             if showsTodayActions {
-                HStack(spacing: 7) {
-                    GhostButton("Abgesagt") {}
-                    PrimaryButton("Öffnen →") {
-                        store.sidebarSelection = .patienten
-                    }
-                }
+                GhostButton("Abgesagt") {}
             } else if store.patientTab == .stammdaten || store.patientTab == .anamnese || store.patientTab == .sitzungen {
                 AutoSaveIndicator()
             }
@@ -403,7 +398,7 @@ private struct OverviewTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
+            VStack(alignment: .leading, spacing: 32) {
                 HStack(alignment: .top, spacing: 12) {
                     ReferenceCard(title: "Diagnosen") {
                         VStack(alignment: .leading, spacing: 6) {
@@ -441,7 +436,7 @@ private struct OverviewTab: View {
                                         .font(.system(size: 11))
                                         .foregroundStyle(PraxisPalette.subtleText)
                                 }
-                                Text("\(latest.date) · Skala 0–\(latest.maxScore)")
+                                Text("\(latest.date.formattedAsDate) · Skala 0–\(latest.maxScore)")
                                     .font(.system(size: 11))
                                     .foregroundStyle(Color(hex: "#aaaaaa"))
                                 ScoreBar(score: latest.score, maxScore: latest.maxScore, color: latest.tier.color)
@@ -461,7 +456,7 @@ private struct OverviewTab: View {
                 VStack(alignment: .leading, spacing: 11) {
                     SectionLabel("Letzte Notiz")
                     if let latestSession = store.selectedPatient.sessions.sorted(by: { $0.number > $1.number }).first {
-                        Text("Sitzung #\(latestSession.number) · \(latestSession.date) · \(latestSession.durationMinutes) min")
+                        Text("Sitzung #\(latestSession.number) · \(latestSession.date.formattedAsDate) · \(latestSession.durationMinutes) min")
                             .font(.system(size: 12))
                             .foregroundStyle(Color(hex: "#aaaaaa"))
                         FlowChips(items: latestSession.topics.map { "Thema: \($0)" } + latestSession.interventions.map { "Intervention: \($0)" } + (latestSession.homework.isEmpty ? [] : ["HA: \(latestSession.homework)"]))
@@ -476,7 +471,20 @@ private struct OverviewTab: View {
                     SectionLabel("Verlauf")
                     VStack(spacing: 0) {
                         ForEach(Array(store.selectedPatient.timeline.enumerated()), id: \.element.id) { index, event in
-                            TimelineRow(event: event, showsLine: index < store.selectedPatient.timeline.count - 1)
+                            TimelineRow(event: event, showsLine: index < store.selectedPatient.timeline.count - 1) {
+                                switch event.kind {
+                                case .session:
+                                    store.selectSession(event.sourceID)
+                                    store.patientTab = .sitzungen
+                                case .document:
+                                    if let doc = store.selectedPatient.documents.first(where: { $0.id == event.sourceID }) {
+                                        store.openDocument(doc)
+                                    }
+                                case .questionnaire:
+                                    store.selectedQuestionnaireResult = store.selectedPatient
+                                        .questionnaireResults.first { $0.id == event.sourceID }
+                                }
+                            }
                         }
                     }
                 }
@@ -610,7 +618,7 @@ private struct AnamneseTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 32) {
                 VStack(alignment: .leading, spacing: 10) {
                     FormSectionHeader("Diagnosen (ICD-10)")
                     VStack(spacing: 7) {
@@ -825,7 +833,7 @@ private struct SessionEditor: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 32) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 10) {
@@ -841,7 +849,7 @@ private struct SessionEditor: View {
                                 }
                             ), options: MockData.sessionTypes, compact: true)
                         }
-                        Text("\(session.date) · \(session.durationMinutes) min")
+                        Text("\(session.date.formattedAsDate) · \(session.durationMinutes) min")
                             .font(.system(size: 11))
                             .foregroundStyle(Color(hex: "#aaaaaa"))
                     }
@@ -1361,6 +1369,7 @@ private struct AppointmentAgendaCard: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .background(RoundedRectangle(cornerRadius: 9).fill(isSelected ? PraxisPalette.primary : .clear))
             .opacity(status == .erfolgt ? 0.45 : 1)
         }
@@ -1586,36 +1595,41 @@ private struct FlowChips: View {
 private struct TimelineRow: View {
     let event: TimelineEvent
     let showsLine: Bool
+    let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(spacing: 2) {
-                Circle()
-                    .fill(dotColor)
-                    .frame(width: 10, height: 10)
-                if showsLine {
-                    Rectangle().fill(PraxisPalette.border).frame(width: 1.5)
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(spacing: 2) {
+                    Circle()
+                        .fill(dotColor)
+                        .frame(width: 10, height: 10)
+                    if showsLine {
+                        Rectangle().fill(PraxisPalette.border).frame(width: 1.5)
+                    }
                 }
-            }
-            .frame(width: 12)
+                .frame(width: 12)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(event.date)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color(hex: "#aaaaaa"))
-                Text(event.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(PraxisPalette.text)
-                Text(event.subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(PraxisPalette.subtleText)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.date)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color(hex: "#aaaaaa"))
+                    Text(event.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(PraxisPalette.text)
+                    Text(event.subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(PraxisPalette.subtleText)
+                }
+                Spacer(minLength: 0)
+                Text("›")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color(hex: "#cccccc"))
             }
-            Spacer(minLength: 0)
-            Text("›")
-                .font(.system(size: 13))
-                .foregroundStyle(Color(hex: "#cccccc"))
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 8)
+        .buttonStyle(.plain)
         .interactiveHover(cornerRadius: 8, lift: false)
     }
 
@@ -2111,13 +2125,14 @@ private struct SessionListCard: View {
                         .padding(.vertical, 1)
                         .background(RoundedRectangle(cornerRadius: 3).fill(isActive ? Color.white.opacity(0.2) : Color(hex: "#f0f0f5")))
                 }
-                Text("\(session.date) · \(session.durationMinutes) min")
+                Text("\(session.date.formattedAsDate) · \(session.durationMinutes) min")
                     .font(.system(size: 11))
                     .foregroundStyle(isActive ? Color.white.opacity(0.72) : PraxisPalette.subtleText)
                 FlowChips(items: session.topics)
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 9)
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .background(RoundedRectangle(cornerRadius: 9).fill(isActive ? PraxisPalette.primary : .clear))
         }
         .buttonStyle(.plain)
@@ -2154,6 +2169,7 @@ private struct ChipEditor: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .frame(minWidth: 96)
+                .padding(.vertical, 2)
                 .onSubmit {
                     onSubmit(draftText)
                 }
@@ -2250,7 +2266,7 @@ private struct QuestionnaireResultRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Text(result.date)
+                Text(result.date.formattedAsDate)
                     .font(.system(size: 12))
                     .foregroundStyle(PraxisPalette.subtleText)
                     .frame(width: 90, alignment: .leading)
@@ -2452,7 +2468,7 @@ private struct DocumentRow: View {
                     font: .system(size: 13, weight: .semibold),
                     foreground: PraxisPalette.text
                 ) { newName in store.updateDocument(document.id) { $0.filename = newName } }
-                Text("\(document.date) · \(document.size)")
+                Text("\(document.date.formattedAsDate) · \(document.size)")
                     .font(.system(size: 11))
                     .foregroundStyle(Color(hex: "#aaaaaa"))
             }
@@ -2587,7 +2603,7 @@ private struct QuestionnaireResultDetail: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(result.questionnaireName)
                         .font(.system(size: 24, weight: .bold))
-                    Text(result.date)
+                    Text(result.date.formattedAsDate)
                         .font(.system(size: 12))
                         .foregroundStyle(PraxisPalette.subtleText)
                 }

@@ -201,7 +201,7 @@ struct PatientScalars {
     let emergencyName, emergencyRelation, emergencyPhone: String
     let patientSince: String
     let sessionCount, sessionLimit: Int
-    let badgeText, agendaSubtitle, nextAppointmentText: String
+    let agendaSubtitle, nextAppointmentText: String
     let overviewNotes, anamnesisNotes, socialHistory, familyHistory: String
     let safetyFlags: Set<String>
     let avatarStartHex, avatarEndHex: String
@@ -218,7 +218,7 @@ struct PatientScalars {
         gpName = r.gpName; gpPractice = r.gpPractice; gpPhone = r.gpPhone
         emergencyName = r.emergencyName; emergencyRelation = r.emergencyRelation; emergencyPhone = r.emergencyPhone
         patientSince = r.patientSince; sessionCount = r.sessionCount; sessionLimit = r.sessionLimit
-        badgeText = r.badgeText; agendaSubtitle = r.agendaSubtitle; nextAppointmentText = r.nextAppointmentText
+        agendaSubtitle = r.agendaSubtitle; nextAppointmentText = r.nextAppointmentText
         overviewNotes = r.overviewNotes; anamnesisNotes = r.anamnesisNotes
         socialHistory = r.socialHistory; familyHistory = r.familyHistory
         safetyFlags = decodeJSONSet(r.safetyFlagsJSON)
@@ -605,39 +605,3 @@ struct DocumentRecord: FetchableRecord, PersistableRecord {
     }
 }
 
-// MARK: - TimelineEventRecord
-
-struct TimelineEventRecord: FetchableRecord, PersistableRecord {
-    static let databaseTableName = "timeline_events"
-
-    var id: String
-    var patientID: String
-    var date: String
-    var title: String
-    var subtitle: String
-    var kind: String
-
-    init(row: Row) {
-        id = row["id"]; patientID = row["patientID"]
-        date = row["date"]; title = row["title"]; subtitle = row["subtitle"]; kind = row["kind"]
-    }
-
-    func encode(to container: inout PersistenceContainer) {
-        container["id"] = id; container["patientID"] = patientID
-        container["date"] = date; container["title"] = title
-        container["subtitle"] = subtitle; container["kind"] = kind
-    }
-
-    init(_ e: TimelineEvent, patientID: UUID) {
-        id = e.id.uuidString; self.patientID = patientID.uuidString
-        date = e.date; title = e.title; subtitle = e.subtitle; kind = e.kind.rawValue
-    }
-
-    func toDomain() -> TimelineEvent {
-        TimelineEvent(
-            id: UUID(uuidString: id) ?? UUID(),
-            date: date, title: title, subtitle: subtitle,
-            kind: TimelineEvent.Kind(rawValue: kind) ?? .session
-        )
-    }
-}

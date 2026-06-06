@@ -220,6 +220,50 @@ final class DatabaseManager: @unchecked Sendable {
             }
         }
 
+        migrator.registerMigration("v4") { db in
+            try db.drop(table: "timeline_events")
+            try AuditLog.append(db: db, eventType: "db.migrated",
+                                payload: ["migration": "v4", "dropped": "timeline_events"])
+        }
+
+        migrator.registerMigration("v5") { db in
+            // Convert date columns from "dd.MM.yyyy" to ISO "yyyy-MM-dd" for correct sorting.
+            let convert = "substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)"
+            for table in ["sessions", "documents", "questionnaire_results"] {
+                try db.execute(sql: """
+                    UPDATE "\(table)" SET date = \(convert)
+                    WHERE date GLOB '??.??.????'
+                    """)
+            }
+            try AuditLog.append(db: db, eventType: "db.migrated",
+                                payload: ["migration": "v5", "changes": "dates to ISO yyyy-MM-dd"])
+        }
+
+        migrator.registerMigration("v6") { db in
+            // v5 missed session dates stored in German long format ("Do. 5. Juni 2025").
+            // Parse and rewrite any row whose date is still not ISO yyyy-MM-dd.
+            let germanDF = DateFormatter()
+            germanDF.locale = Locale(identifier: "de_DE")
+            germanDF.dateFormat = "EEE. d. MMMM yyyy"
+            let isoDF = DateFormatter()
+            isoDF.locale = Locale(identifier: "en_US_POSIX")
+            isoDF.dateFormat = "yyyy-MM-dd"
+            for table in ["sessions", "documents", "questionnaire_results"] {
+                let rows = try Row.fetchAll(db,
+                    sql: "SELECT id, date FROM \"\(table)\" WHERE date NOT GLOB '????-??-??'")
+                for row in rows {
+                    let id: String = row["id"]
+                    let raw: String = row["date"]
+                    if let date = germanDF.date(from: raw) {
+                        try db.execute(sql: "UPDATE \"\(table)\" SET date = ? WHERE id = ?",
+                                       arguments: [isoDF.string(from: date), id])
+                    }
+                }
+            }
+            try AuditLog.append(db: db, eventType: "db.migrated",
+                                payload: ["migration": "v6", "changes": "remaining non-ISO dates to yyyy-MM-dd"])
+        }
+
         try migrator.migrate(db)
     }
 }
