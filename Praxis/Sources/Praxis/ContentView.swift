@@ -882,24 +882,18 @@ private struct SessionEditor: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 5) {
-                    SectionLabel("Themen")
-                    ChipEditor(items: session.topics, draftText: $topicDraft, placeholder: "Thema hinzufügen") { topic in
-                        store.removeTopic(topic)
-                    } onSubmit: { value in
-                        store.addTopic(value)
-                        topicDraft = ""
-                    }
+                ChipEditor(title: "Themen", items: session.topics, draftText: $topicDraft, placeholder: "Thema hinzufügen") { topic in
+                    store.removeTopic(topic)
+                } onSubmit: { value in
+                    store.addTopic(value)
+                    topicDraft = ""
                 }
 
-                VStack(alignment: .leading, spacing: 5) {
-                    SectionLabel("Interventionen")
-                    ChipEditor(items: session.interventions, draftText: $interventionDraft, placeholder: "Intervention hinzufügen") { intervention in
-                        store.removeIntervention(intervention)
-                    } onSubmit: { value in
-                        store.addIntervention(value)
-                        interventionDraft = ""
-                    }
+                ChipEditor(title: "Interventionen", items: session.interventions, draftText: $interventionDraft, placeholder: "Intervention hinzufügen") { intervention in
+                    store.removeIntervention(intervention)
+                } onSubmit: { value in
+                    store.addIntervention(value)
+                    interventionDraft = ""
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -2141,6 +2135,7 @@ private struct SessionListCard: View {
 }
 
 private struct ChipEditor: View {
+    var title: String? = nil
     let items: [String]
     @Binding var draftText: String
     let placeholder: String
@@ -2148,40 +2143,44 @@ private struct ChipEditor: View {
     let onSubmit: (String) -> Void
 
     var body: some View {
-        WrappingFlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
-            ForEach(items, id: \.self) { item in
-                HStack(spacing: 4) {
-                    Text(item)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color(hex: "#1a3a7a"))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                    Button("×") { onRemove(item) }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Color(hex: "#6080c0"))
-                        .deleteHover(tint: Color(hex: "#6080c0"))
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 5).fill(Color(hex: "#e0eaff")))
+        VStack(alignment: .leading, spacing: title == nil ? 0 : 5) {
+            if let title {
+                SectionLabel(title)
             }
-            TextField(placeholder, text: $draftText)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .frame(minWidth: 96)
-                .padding(.vertical, 2)
-                .onSubmit {
-                    onSubmit(draftText)
+            WrappingFlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
+                ForEach(items, id: \.self) { item in
+                    HStack(spacing: 4) {
+                        Text(item)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Color(hex: "#1a3a7a"))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                        Button("×") { onRemove(item) }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color(hex: "#6080c0"))
+                            .deleteHover(tint: Color(hex: "#6080c0"))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(Color(hex: "#e0eaff")))
                 }
+                TextField(placeholder, text: $draftText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .frame(minWidth: 96)
+                    .onSubmit {
+                        onSubmit(draftText)
+                    }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(PraxisPalette.field)
+                    .stroke(PraxisPalette.border, lineWidth: 1)
+            )
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(PraxisPalette.field)
-                .stroke(PraxisPalette.border, lineWidth: 1)
-        )
     }
 }
 
@@ -2570,25 +2569,35 @@ private struct WrappingFlowLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var currentX = bounds.minX
-        var currentY = bounds.minY
-        var rowHeight: CGFloat = 0
+        // Two-pass: first collect rows, then place with vertical centering within each row.
+        var rows: [[(index: Int, size: CGSize)]] = []
+        var currentRow: [(index: Int, size: CGSize)] = []
+        var currentX: CGFloat = 0
 
-        for subview in subviews {
+        for (i, subview) in subviews.enumerated() {
             let size = subview.sizeThatFits(.unspecified)
-            if currentX > bounds.minX && currentX + size.width > bounds.maxX {
-                currentX = bounds.minX
-                currentY += rowHeight + verticalSpacing
-                rowHeight = 0
+            if currentX > 0 && currentX + size.width > bounds.width {
+                rows.append(currentRow)
+                currentRow = []
+                currentX = 0
             }
-
-            subview.place(
-                at: CGPoint(x: currentX, y: currentY),
-                proposal: ProposedViewSize(width: size.width, height: size.height)
-            )
-
+            currentRow.append((i, size))
             currentX += size.width + horizontalSpacing
-            rowHeight = max(rowHeight, size.height)
+        }
+        if !currentRow.isEmpty { rows.append(currentRow) }
+
+        var y = bounds.minY
+        for row in rows {
+            let rowH = row.map(\.size.height).max() ?? 0
+            var x = bounds.minX
+            for (i, size) in row {
+                subviews[i].place(
+                    at: CGPoint(x: x, y: y + (rowH - size.height) / 2),
+                    proposal: ProposedViewSize(width: size.width, height: size.height)
+                )
+                x += size.width + horizontalSpacing
+            }
+            y += rowH + verticalSpacing
         }
     }
 }
