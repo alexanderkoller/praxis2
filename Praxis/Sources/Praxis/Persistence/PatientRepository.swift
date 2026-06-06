@@ -5,10 +5,21 @@ import GRDB
 // New methods added in future migrations must follow the same pattern.
 enum PatientRepository {
 
+    #if DEBUG
+    nonisolated(unsafe) static var _testDBQueue: DatabaseQueue? = nil
+    #endif
+
+    private static var activeQueue: DatabaseQueue {
+        #if DEBUG
+        if let q = _testDBQueue { return q }
+        #endif
+        return DatabaseManager.shared.dbQueue
+    }
+
     // MARK: - Read
 
     static func fetchAll() throws -> [Patient] {
-        try DatabaseManager.shared.dbQueue.read { db in
+        try activeQueue.read { db in
             let patientRecords = try PatientRecord.fetchAll(db)
             guard !patientRecords.isEmpty else { return [] }
 
@@ -120,7 +131,7 @@ enum PatientRepository {
     // MARK: - Seed
 
     static func seedMockData(_ patients: [Patient]) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             for p in patients {
                 try PatientRecord(p).insert(db)
                 for d in p.diagnoses    { try DiagnosisRecord(d, patientID: p.id).insert(db) }
@@ -146,7 +157,7 @@ enum PatientRepository {
     // MARK: - Patient scalar writes
 
     static func updatePatientScalars(_ patient: Patient) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM patients WHERE id = ?",
                                              arguments: [patient.id.uuidString])
             try PatientRecord(patient).save(db)
@@ -161,7 +172,7 @@ enum PatientRepository {
     }
 
     static func updatePatientStatus(id: UUID, status: PatientStatus) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let oldStatus = try String.fetchOne(db,
                 sql: "SELECT status FROM patients WHERE id = ?", arguments: [id.uuidString])
             try db.execute(
@@ -178,7 +189,7 @@ enum PatientRepository {
     // MARK: - Diagnoses
 
     static func insertDiagnosis(_ d: Diagnosis, patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             try DiagnosisRecord(d, patientID: patientID).insert(db)
             let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM diagnoses WHERE id = ?",
                                             arguments: [d.id.uuidString])
@@ -190,7 +201,7 @@ enum PatientRepository {
     }
 
     static func deleteDiagnosis(id: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM diagnoses WHERE id = ?",
                                              arguments: [id.uuidString])
             let beforeDict = AuditLog.rowDict(beforeRow)
@@ -205,7 +216,7 @@ enum PatientRepository {
     // MARK: - Medications
 
     static func insertMedication(_ m: Medication, patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             try MedicationRecord(m, patientID: patientID).insert(db)
             let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM medications WHERE id = ?",
                                             arguments: [m.id.uuidString])
@@ -217,7 +228,7 @@ enum PatientRepository {
     }
 
     static func deleteMedication(id: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM medications WHERE id = ?",
                                              arguments: [id.uuidString])
             let beforeDict = AuditLog.rowDict(beforeRow)
@@ -230,7 +241,7 @@ enum PatientRepository {
     }
 
     static func updateMedication(_ m: Medication, patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM medications WHERE id = ?",
                                              arguments: [m.id.uuidString])
             try MedicationRecord(m, patientID: patientID).save(db)
@@ -247,7 +258,7 @@ enum PatientRepository {
     // MARK: - Prior treatments
 
     static func insertPriorTreatment(_ t: PriorTreatment, patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             try PriorTreatmentRecord(t, patientID: patientID).insert(db)
             let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM prior_treatments WHERE id = ?",
                                             arguments: [t.id.uuidString])
@@ -259,7 +270,7 @@ enum PatientRepository {
     }
 
     static func deletePriorTreatment(id: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM prior_treatments WHERE id = ?",
                                              arguments: [id.uuidString])
             let beforeDict = AuditLog.rowDict(beforeRow)
@@ -272,7 +283,7 @@ enum PatientRepository {
     }
 
     static func updatePriorTreatment(_ t: PriorTreatment, patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM prior_treatments WHERE id = ?",
                                              arguments: [t.id.uuidString])
             try PriorTreatmentRecord(t, patientID: patientID).save(db)
@@ -289,20 +300,30 @@ enum PatientRepository {
     // MARK: - Sessions
 
     static func insertSession(_ s: SessionRecord, patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             try SessionRecord_DB(s, patientID: patientID).insert(db)
             for g in s.gopEntries { try GOPEntryRecord(g, sessionID: s.id).insert(db) }
+            // Log session first so its row exists in the audit stream before the GOP entries
+            // that reference it via FK during any future reconstruction replay.
             let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM sessions WHERE id = ?",
                                             arguments: [s.id.uuidString])
             try AuditLog.append(db: db, eventType: "session.created",
                 entityTable: "sessions", entityID: s.id.uuidString,
                 patientID: patientID.uuidString,
                 payload: ["after": AuditLog.rowDict(afterRow), "gopCount": s.gopEntries.count])
+            for g in s.gopEntries {
+                let afterGOP = try Row.fetchOne(db, sql: "SELECT * FROM gop_entries WHERE id = ?",
+                                                arguments: [g.id.uuidString])
+                try AuditLog.append(db: db, eventType: "gop_entry.created",
+                    entityTable: "gop_entries", entityID: g.id.uuidString,
+                    patientID: patientID.uuidString,
+                    payload: ["after": AuditLog.rowDict(afterGOP)])
+            }
         }
     }
 
     static func updateSession(_ s: SessionRecord) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM sessions WHERE id = ?",
                                              arguments: [s.id.uuidString])
             let patientID = AuditLog.rowDict(beforeRow)["patientID"] as? String
@@ -332,35 +353,51 @@ enum PatientRepository {
     // MARK: - GOP entries
 
     static func insertGOPEntry(_ g: GOPEntry, sessionID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             try GOPEntryRecord(g, sessionID: sessionID).insert(db)
             let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM gop_entries WHERE id = ?",
                                             arguments: [g.id.uuidString])
+            let patientID = try String.fetchOne(db,
+                sql: "SELECT patientID FROM sessions WHERE id = ?",
+                arguments: [sessionID.uuidString])
             try AuditLog.append(db: db, eventType: "gop_entry.created",
                 entityTable: "gop_entries", entityID: g.id.uuidString,
+                patientID: patientID,
                 payload: ["after": AuditLog.rowDict(afterRow)])
         }
     }
 
     static func deleteGOPEntry(id: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM gop_entries WHERE id = ?",
                                              arguments: [id.uuidString])
+            let beforeDict = AuditLog.rowDict(beforeRow)
+            let sessionID = beforeDict["sessionID"] as? String
+            let patientID = try sessionID.flatMap {
+                try String.fetchOne(db, sql: "SELECT patientID FROM sessions WHERE id = ?", arguments: [$0])
+            }
             try db.execute(sql: "DELETE FROM gop_entries WHERE id = ?", arguments: [id.uuidString])
             try AuditLog.append(db: db, eventType: "gop_entry.deleted",
                 entityTable: "gop_entries", entityID: id.uuidString,
-                payload: ["before": AuditLog.rowDict(beforeRow)])
+                patientID: patientID,
+                payload: ["before": beforeDict])
         }
     }
 
     static func updateGOPFactor(id: UUID, factor: Double) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             let oldFactor = try Double.fetchOne(db,
                 sql: "SELECT factor FROM gop_entries WHERE id = ?", arguments: [id.uuidString])
+            let patientID = try String.fetchOne(db, sql: """
+                SELECT s.patientID FROM gop_entries g
+                JOIN sessions s ON s.id = g.sessionID
+                WHERE g.id = ?
+                """, arguments: [id.uuidString])
             try db.execute(sql: "UPDATE gop_entries SET factor = ? WHERE id = ?",
                            arguments: [factor, id.uuidString])
             try AuditLog.append(db: db, eventType: "gop_entry.factor_updated",
                 entityTable: "gop_entries", entityID: id.uuidString,
+                patientID: patientID,
                 payload: ["changes": ["factor": ["b": oldFactor.map { $0 as Any } ?? NSNull(), "a": factor]]])
         }
     }
@@ -368,7 +405,7 @@ enum PatientRepository {
     // MARK: - Appointments
 
     static func insertAppointment(_ a: AppointmentRecord, patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             try AppointmentRecord_DB(a, patientID: patientID).insert(db)
             let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM appointments WHERE id = ?",
                                             arguments: [a.id.uuidString])
@@ -382,35 +419,51 @@ enum PatientRepository {
     // MARK: - Questionnaire results
 
     static func insertQuestionnaireResult(_ r: QuestionnaireResultRecord, answers: [QuestionnaireAnswer], patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             try QuestionnaireResultRecord_DB(r, patientID: patientID).insert(db)
             for a in answers { try QuestionnaireAnswerRecord(a, resultID: r.id).insert(db) }
-            let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM questionnaire_results WHERE id = ?",
-                                            arguments: [r.id.uuidString])
+            // Log result first so the FK parent exists in the audit stream before
+            // the per-answer entries that reference it during reconstruction replay.
+            let afterResult = try Row.fetchOne(db, sql: "SELECT * FROM questionnaire_results WHERE id = ?",
+                                               arguments: [r.id.uuidString])
             try AuditLog.append(db: db, eventType: "questionnaire_result.created",
                 entityTable: "questionnaire_results", entityID: r.id.uuidString,
                 patientID: patientID.uuidString,
-                payload: ["after": AuditLog.rowDict(afterRow), "answerCount": answers.count])
+                payload: ["after": AuditLog.rowDict(afterResult), "answerCount": answers.count])
+            for a in answers {
+                let afterAnswer = try Row.fetchOne(db, sql: "SELECT * FROM questionnaire_answers WHERE id = ?",
+                                                   arguments: [a.id.uuidString])
+                try AuditLog.append(db: db, eventType: "questionnaire_answer.created",
+                    entityTable: "questionnaire_answers", entityID: a.id.uuidString,
+                    patientID: patientID.uuidString,
+                    payload: ["after": AuditLog.rowDict(afterAnswer)])
+            }
         }
     }
 
     // MARK: - Documents & timeline
 
     static func insertDocument(_ d: PatientDocument, event: TimelineEvent, patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             try DocumentRecord(d, patientID: patientID).insert(db)
             try TimelineEventRecord(event, patientID: patientID).insert(db)
-            let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM documents WHERE id = ?",
+            let afterDoc = try Row.fetchOne(db, sql: "SELECT * FROM documents WHERE id = ?",
                                             arguments: [d.id.uuidString])
             try AuditLog.append(db: db, eventType: "document.created",
                 entityTable: "documents", entityID: d.id.uuidString,
                 patientID: patientID.uuidString,
-                payload: ["after": AuditLog.rowDict(afterRow)])
+                payload: ["after": AuditLog.rowDict(afterDoc)])
+            let afterEvent = try Row.fetchOne(db, sql: "SELECT * FROM timeline_events WHERE id = ?",
+                                              arguments: [event.id.uuidString])
+            try AuditLog.append(db: db, eventType: "timeline_event.created",
+                entityTable: "timeline_events", entityID: event.id.uuidString,
+                patientID: patientID.uuidString,
+                payload: ["after": AuditLog.rowDict(afterEvent)])
         }
     }
 
     static func insertTimelineEvent(_ e: TimelineEvent, patientID: UUID) throws {
-        try DatabaseManager.shared.dbQueue.write { db in
+        try activeQueue.write { db in
             try TimelineEventRecord(e, patientID: patientID).insert(db)
             let afterRow = try Row.fetchOne(db, sql: "SELECT * FROM timeline_events WHERE id = ?",
                                             arguments: [e.id.uuidString])

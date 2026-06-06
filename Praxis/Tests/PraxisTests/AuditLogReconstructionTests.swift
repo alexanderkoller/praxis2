@@ -4,6 +4,20 @@ import GRDB
 
 final class AuditLogReconstructionTests: XCTestCase {
 
+    private var testDB: DatabaseQueue!
+
+    override func setUpWithError() throws {
+        testDB = try makeDB()
+        PatientRepository._testDBQueue = testDB
+    }
+
+    override func tearDown() {
+        PatientRepository._testDBQueue = nil
+        testDB = nil
+    }
+
+    // MARK: - Helpers
+
     private func makeDB() throws -> DatabaseQueue {
         let db = try DatabaseQueue()
         try DatabaseManager.runMigrations(db)
@@ -183,7 +197,7 @@ final class AuditLogReconstructionTests: XCTestCase {
         let entries = try db.read { db in
             try AuditLogEntry
                 .filter(Column("entityID") == medID)
-                .order(Column("occurredAt").asc)
+                .order(sql: "rowid ASC")
                 .fetchAll(db)
         }
         var reconstructed: [String: Any] = [:]
@@ -215,156 +229,217 @@ final class AuditLogReconstructionTests: XCTestCase {
         XCTAssertEqual(reconstructed["since"] as? String,     actual["since"] as? String)
     }
 
-    // MARK: - Full reconstruction tests
+    // MARK: - Gap tests (call production code via testDB injection)
 
-    /// Replays all audit log entries from `source` onto a fresh DB and checks that every
-    /// child-entity table matches exactly. The patients table is seeded directly since
-    /// PatientRepository does not emit a patient.created event.
-    func testAuditLogReconstructsChildTables() throws {
-        let source = try makeDB()
+    // Gap 1 — fixed: questionnaire_answers are now individually logged.
+    func testQuestionnaireAnswersAreAuditLogged() throws {
         let patientID = UUID().uuidString
+        try testDB.write { db in try insertPatient(id: patientID, into: db) }
 
-        // Set up patient (not in audit log — seeded directly)
-        try source.write { db in try insertPatient(id: patientID, into: db) }
+        let result = QuestionnaireResultRecord(
+            questionnaireName: "PHQ-9", description: "Depressions-Score",
+            date: "10.06.2024", sessionLabel: "Sitzung 3",
+            score: 10, maxScore: 27, tier: .leicht, answers: [])
+        let answers = [
+            QuestionnaireAnswer(question: "Wenig Interesse", answer: "Mehrere Tage", score: 1),
+            QuestionnaireAnswer(question: "Niedergeschlagen", answer: "Mehr als die Hälfte", score: 2),
+        ]
 
-        // ── diagnoses: create then delete ──────────────────────────────────
-        let diagID = UUID().uuidString
-        try source.write { db in
-            try db.execute(sql: """
-                INSERT INTO diagnoses (id, patientID, code, name)
-                VALUES (?, ?, 'F32.1', 'Depressive Episode')
-                """, arguments: [diagID, patientID])
-            let row = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM diagnoses WHERE id = ?", arguments: [diagID]))
-            try AuditLog.append(db: db, eventType: "diagnosis.created",
-                entityTable: "diagnoses", entityID: diagID, patientID: patientID,
-                payload: ["after": row])
-        }
-        try source.write { db in
-            let before = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM diagnoses WHERE id = ?", arguments: [diagID]))
-            try db.execute(sql: "DELETE FROM diagnoses WHERE id = ?", arguments: [diagID])
-            try AuditLog.append(db: db, eventType: "diagnosis.deleted",
-                entityTable: "diagnoses", entityID: diagID, patientID: patientID,
-                payload: ["before": before])
-        }
+        try PatientRepository.insertQuestionnaireResult(
+            result, answers: answers, patientID: UUID(uuidString: patientID)!)
 
-        // ── medications: create then update ────────────────────────────────
-        let medID = UUID().uuidString
-        try source.write { db in
-            try db.execute(sql: """
-                INSERT INTO medications (id, patientID, name, dose, frequency, since)
-                VALUES (?, ?, 'Sertralin', '50mg', 'täglich', '2024-01-01')
-                """, arguments: [medID, patientID])
-            let row = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM medications WHERE id = ?", arguments: [medID]))
-            try AuditLog.append(db: db, eventType: "medication.created",
-                entityTable: "medications", entityID: medID, patientID: patientID,
-                payload: ["after": row])
+        let entries = try testDB.read { db in try AuditLogEntry.fetchAll(db) }
+        let answerEntries = entries.filter { $0.entityTable == "questionnaire_answers" }
+        XCTAssertEqual(answerEntries.count, answers.count,
+            "Expected one audit entry per questionnaire answer")
+        for entry in answerEntries {
+            let payload = try JSONSerialization.jsonObject(
+                with: Data(entry.payloadJSON.utf8)) as? [String: Any]
+            XCTAssertNotNil(payload?["after"], "answer entry missing 'after' payload")
+            XCTAssertEqual(entry.patientID, patientID)
         }
-        try source.write { db in
-            let before = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM medications WHERE id = ?", arguments: [medID]))
-            try db.execute(sql: "UPDATE medications SET dose = '100mg' WHERE id = ?", arguments: [medID])
-            let after = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM medications WHERE id = ?", arguments: [medID]))
-            try AuditLog.append(db: db, eventType: "medication.updated",
-                entityTable: "medications", entityID: medID, patientID: patientID,
-                payload: AuditLog.diff(before: before, after: after))
-        }
+    }
 
-        // ── prior treatments: create, update, delete ───────────────────────
-        let treatmentID = UUID().uuidString
-        try source.write { db in
-            try db.execute(sql: """
-                INSERT INTO prior_treatments (id, patientID, type, title, detail)
-                VALUES (?, ?, 'ambulant', 'Verhaltenstherapie', 'Abgebrochen nach 10 Sitzungen')
-                """, arguments: [treatmentID, patientID])
-            let row = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM prior_treatments WHERE id = ?", arguments: [treatmentID]))
-            try AuditLog.append(db: db, eventType: "prior_treatment.created",
-                entityTable: "prior_treatments", entityID: treatmentID, patientID: patientID,
-                payload: ["after": row])
-        }
-        try source.write { db in
-            let before = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM prior_treatments WHERE id = ?", arguments: [treatmentID]))
-            try db.execute(sql: "UPDATE prior_treatments SET detail = 'Abgeschlossen' WHERE id = ?", arguments: [treatmentID])
-            let after = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM prior_treatments WHERE id = ?", arguments: [treatmentID]))
-            try AuditLog.append(db: db, eventType: "prior_treatment.updated",
-                entityTable: "prior_treatments", entityID: treatmentID, patientID: patientID,
-                payload: AuditLog.diff(before: before, after: after))
-        }
+    // Gap 2 — fixed: GOP entries created inside insertSession are now individually logged.
+    func testSessionInlineGOPEntriesAreAuditLogged() throws {
+        let patientID = UUID().uuidString
+        try testDB.write { db in try insertPatient(id: patientID, into: db) }
 
-        // ── sessions: create then update ───────────────────────────────────
-        let sessionID = UUID().uuidString
-        try source.write { db in
+        let gop = GOPEntry(code: "860", description: "Probatorische Sitzung",
+                           factor: 2.3, basePrice: 16.97)
+        let session = SessionRecord(
+            number: 1, shortType: "E", type: "Einzeltherapie",
+            date: "2024-06-01", durationMinutes: 50,
+            topics: [], interventions: [], homework: "", note: "",
+            gopEntries: [gop])
+
+        try PatientRepository.insertSession(session, patientID: UUID(uuidString: patientID)!)
+
+        let entries = try testDB.read { db in try AuditLogEntry.fetchAll(db) }
+        let gopEntries = entries.filter { $0.entityTable == "gop_entries" }
+        XCTAssertEqual(gopEntries.count, 1,
+            "Expected one audit entry per GOP entry created with the session")
+        let gopEntry = try XCTUnwrap(gopEntries.first)
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(gopEntry.payloadJSON.utf8)) as? [String: Any])
+        XCTAssertNotNil(payload["after"], "gop_entry audit entry missing 'after' payload")
+        XCTAssertEqual(gopEntry.patientID, patientID)
+    }
+
+    // Gap 3 — fixed: the timeline event created inside insertDocument is now logged.
+    func testTimelineEventInDocumentIsAuditLogged() throws {
+        let patientID = UUID().uuidString
+        try testDB.write { db in try insertPatient(id: patientID, into: db) }
+
+        let doc = PatientDocument(filename: "Befund.pdf", fileType: "PDF",
+                                  size: "128 KB", source: "Arzt",
+                                  category: .bericht, date: "10.06.2024", year: "2024")
+        let event = TimelineEvent(date: "10.06.2024", title: "Befund.pdf",
+                                  subtitle: "Dokument hochgeladen", kind: .document)
+
+        try PatientRepository.insertDocument(doc, event: event,
+                                             patientID: UUID(uuidString: patientID)!)
+
+        let entries = try testDB.read { db in try AuditLogEntry.fetchAll(db) }
+        let timelineEntries = entries.filter { $0.entityTable == "timeline_events" }
+        XCTAssertEqual(timelineEntries.count, 1,
+            "Expected a timeline_event audit entry for the event created inside insertDocument")
+        let te = try XCTUnwrap(timelineEntries.first)
+        XCTAssertEqual(te.entityID, event.id.uuidString)
+        XCTAssertEqual(te.patientID, patientID)
+    }
+
+    // Gap 6 — fixed: all three GOP operations now carry patientID in the audit log.
+    func testGOPEntryAuditLogsIncludePatientID() throws {
+        let patientID = UUID().uuidString
+        let sessionID = UUID()
+        try testDB.write { db in
+            try insertPatient(id: patientID, into: db)
             try db.execute(sql: """
                 INSERT INTO sessions (id, patientID, number, shortType, type, date,
                     durationMinutes, topics, interventions, homework, note)
                 VALUES (?, ?, 1, 'E', 'Einzeltherapie', '2024-06-01', 50, '[]', '[]', '', '')
-                """, arguments: [sessionID, patientID])
-            let row = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM sessions WHERE id = ?", arguments: [sessionID]))
-            try AuditLog.append(db: db, eventType: "session.created",
-                entityTable: "sessions", entityID: sessionID, patientID: patientID,
-                payload: ["after": row, "gopCount": 0])
-        }
-        try source.write { db in
-            let before = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM sessions WHERE id = ?", arguments: [sessionID]))
-            try db.execute(sql: "UPDATE sessions SET note = 'Gutes Gespräch' WHERE id = ?", arguments: [sessionID])
-            let after = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM sessions WHERE id = ?", arguments: [sessionID]))
-            try AuditLog.append(db: db, eventType: "session.updated",
-                entityTable: "sessions", entityID: sessionID, patientID: patientID,
-                payload: AuditLog.diff(before: before, after: after))
+                """, arguments: [sessionID.uuidString, patientID])
         }
 
-        // ── appointment: create only ───────────────────────────────────────
-        let apptID = UUID().uuidString
-        try source.write { db in
-            try db.execute(sql: """
-                INSERT INTO appointments
-                    (id, patientID, dateLabel, dayNumber, month, time,
-                     durationMinutes, title, type, status, note, isPast)
-                VALUES (?, ?, 'Mo, 10. Jun 2024', '10', 'Jun', '09:00', 50,
-                        'Sitzung', 'Einzeltherapie', 'geplant', '', 0)
-                """, arguments: [apptID, patientID])
-            let row = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM appointments WHERE id = ?", arguments: [apptID]))
-            try AuditLog.append(db: db, eventType: "appointment.created",
-                entityTable: "appointments", entityID: apptID, patientID: patientID,
-                payload: ["after": row])
-        }
+        let gop = GOPEntry(code: "870", description: "Einzeltherapie",
+                           factor: 2.3, basePrice: 16.97)
 
-        // ── gop entry (standalone, not via insertSession) ──────────────────
-        let gopID = UUID().uuidString
-        try source.write { db in
-            try db.execute(sql: """
-                INSERT INTO gop_entries
-                    (id, sessionID, code, description, factor, basePrice,
-                     maxFactorNoJustification, maxFactor, commonFactors)
-                VALUES (?, ?, '870', 'Einzeltherapie', 2.3, 16.97, 2.3, 3.5, '[]')
-                """, arguments: [gopID, sessionID])
-            let row = AuditLog.rowDict(try Row.fetchOne(db, sql: "SELECT * FROM gop_entries WHERE id = ?", arguments: [gopID]))
-            try AuditLog.append(db: db, eventType: "gop_entry.created",
-                entityTable: "gop_entries", entityID: gopID,
-                payload: ["after": row])
-        }
+        // insert
+        try PatientRepository.insertGOPEntry(gop, sessionID: sessionID)
 
-        // ── Reconstruct onto a fresh DB ────────────────────────────────────
-        let auditEntries = try source.read { db in
-            try AuditLogEntry.order(Column("occurredAt").asc).fetchAll(db)
+        // update factor
+        try PatientRepository.updateGOPFactor(id: gop.id, factor: 3.5)
+
+        // delete
+        try PatientRepository.deleteGOPEntry(id: gop.id)
+
+        let entries = try testDB.read { db in
+            try AuditLogEntry
+                .filter(Column("entityTable") == "gop_entries")
+                .fetchAll(db)
+        }
+        XCTAssertEqual(entries.count, 3, "Expected created + factor_updated + deleted")
+        for entry in entries {
+            XCTAssertEqual(entry.patientID, patientID,
+                "\(entry.eventType) is missing patientID")
+        }
+    }
+
+    // MARK: - Full reconstruction test
+
+    /// Performs a representative set of operations through PatientRepository, then replays
+    /// the entire audit log onto a fresh DB and asserts every child table matches exactly.
+    /// Uses rowid ordering to preserve intra-transaction event sequence (FK-safe replay).
+    func testAuditLogReconstructsChildTables() throws {
+        let patientID = UUID().uuidString
+        try testDB.write { db in try insertPatient(id: patientID, into: db) }
+        let pid = UUID(uuidString: patientID)!
+
+        // ── diagnoses: create then delete ─────────────────────────────────
+        let diag = Diagnosis(code: "F32.1", name: "Depressive Episode",
+                             statusText: "aktiv", since: "2024-01-01", isPrimary: true)
+        try PatientRepository.insertDiagnosis(diag, patientID: pid)
+        try PatientRepository.deleteDiagnosis(id: diag.id)
+
+        // ── medications: create then update ───────────────────────────────
+        var med = Medication(name: "Sertralin", dose: "50mg",
+                             frequency: "täglich", since: "2024-01-01")
+        try PatientRepository.insertMedication(med, patientID: pid)
+        med.dose = "100mg"
+        try PatientRepository.updateMedication(med, patientID: pid)
+
+        // ── prior treatments: create + update ─────────────────────────────
+        var treatment = PriorTreatment(type: "ambulant",
+                                       title: "Verhaltenstherapie",
+                                       detail: "Abgebrochen")
+        try PatientRepository.insertPriorTreatment(treatment, patientID: pid)
+        treatment.detail = "Abgeschlossen"
+        try PatientRepository.updatePriorTreatment(treatment, patientID: pid)
+
+        // ── session with initial GOP entries ──────────────────────────────
+        let gop = GOPEntry(code: "870", description: "Einzeltherapie",
+                           factor: 2.3, basePrice: 16.97)
+        let session = SessionRecord(
+            number: 1, shortType: "E", type: "Einzeltherapie",
+            date: "2024-06-01", durationMinutes: 50,
+            topics: ["Angst"], interventions: ["Exposition"],
+            homework: "Tagebuch", note: "",
+            gopEntries: [gop])
+        try PatientRepository.insertSession(session, patientID: pid)
+
+        // ── appointment ───────────────────────────────────────────────────
+        let appt = AppointmentRecord(
+            dateLabel: "Mo, 10. Jun 2024", dayNumber: "10", month: "Jun",
+            time: "09:00", durationMinutes: 50,
+            title: "Sitzung", type: "Einzeltherapie",
+            sessionNumber: 1, status: .geplant, isPast: false)
+        try PatientRepository.insertAppointment(appt, patientID: pid)
+
+        // ── questionnaire result with answers ─────────────────────────────
+        let answers = [
+            QuestionnaireAnswer(question: "Wenig Interesse", answer: "Mehrere Tage", score: 1),
+            QuestionnaireAnswer(question: "Niedergeschlagen", answer: "Fast täglich", score: 3),
+        ]
+        let result = QuestionnaireResultRecord(
+            questionnaireName: "PHQ-9", description: "Depressions-Score",
+            date: "10.06.2024", sessionLabel: "Sitzung 1",
+            score: 4, maxScore: 27, tier: .minimal, answers: [])
+        try PatientRepository.insertQuestionnaireResult(result, answers: answers, patientID: pid)
+
+        // ── document (also creates a timeline event) ───────────────────────
+        let doc = PatientDocument(filename: "Bericht.pdf", fileType: "PDF",
+                                  size: "256 KB", source: "Arzt",
+                                  category: .bericht, date: "10.06.2024", year: "2024")
+        let docEvent = TimelineEvent(date: "10.06.2024", title: "Bericht.pdf",
+                                     subtitle: "Dokument", kind: .document)
+        try PatientRepository.insertDocument(doc, event: docEvent, patientID: pid)
+
+        // ── Reconstruct onto a fresh replica ──────────────────────────────
+        // Use rowid ordering: within the same transaction all entries share an occurredAt
+        // timestamp, so rowid (insertion order) is the only reliable ordering that
+        // guarantees FK parents appear before their children.
+        let auditEntries = try testDB.read { db in
+            try AuditLogEntry.order(sql: "rowid ASC").fetchAll(db)
         }
 
         let replica = try makeDB()
         try replica.write { db in
-            // Patients have no audit event — seed them directly
-            let patientDicts = try source.read { db in
+            let patientDicts = try self.testDB.read { db in
                 try Row.fetchAll(db, sql: "SELECT * FROM patients")
                     .map { AuditLog.rowDict($0) }
             }
-            for dict in patientDicts { try insertRow(dict, into: "patients", db: db) }
-
-            for entry in auditEntries { try applyAuditEntry(entry, to: db) }
+            for dict in patientDicts { try self.insertRow(dict, into: "patients", db: db) }
+            for entry in auditEntries { try self.applyAuditEntry(entry, to: db) }
         }
 
-        // ── Compare every child table ──────────────────────────────────────
+        // ── Compare every child table ─────────────────────────────────────
         let tables = ["diagnoses", "medications", "prior_treatments",
                       "sessions", "gop_entries", "appointments",
+                      "questionnaire_results", "questionnaire_answers",
                       "documents", "timeline_events"]
         for table in tables {
-            let srcRows = try source.read { db in
+            let srcRows = try testDB.read { db in
                 try Row.fetchAll(db, sql: "SELECT * FROM \"\(table)\" ORDER BY id")
             }
             let dstRows = try replica.read { db in
@@ -376,86 +451,5 @@ final class AuditLogReconstructionTests: XCTestCase {
                 XCTAssertEqual(src, dst, "\(table): row mismatch after reconstruction")
             }
         }
-    }
-
-    /// questionnaire_answers rows are inserted inside PatientRepository.insertQuestionnaireResult
-    /// but only the result-level audit entry is written (with answerCount). Individual answers are
-    /// not logged, so the questionnaire_answers table cannot be reconstructed from the audit log.
-    /// This test fails until per-answer logging is added to PatientRepository.
-    func testQuestionnaireAnswersAreAuditLogged() throws {
-        let db = try makeDB()
-        let patientID = UUID().uuidString
-        let resultID = UUID().uuidString
-        let answerID = UUID().uuidString
-
-        try db.write { db in
-            try insertPatient(id: patientID, into: db)
-            try db.execute(sql: """
-                INSERT INTO questionnaire_results
-                    (id, patientID, questionnaireName, score, maxScore, tier)
-                VALUES (?, ?, 'PHQ-9', 10, 27, 'mild')
-                """, arguments: [resultID, patientID])
-            try db.execute(sql: """
-                INSERT INTO questionnaire_answers (id, resultID, question, answer, score)
-                VALUES (?, ?, 'Wenig Interesse', 'Mehrere Tage', 1)
-                """, arguments: [answerID, resultID])
-            // Replicates what PatientRepository.insertQuestionnaireResult actually logs:
-            let resultRow = AuditLog.rowDict(try Row.fetchOne(db,
-                sql: "SELECT * FROM questionnaire_results WHERE id = ?", arguments: [resultID]))
-            try AuditLog.append(db: db, eventType: "questionnaire_result.created",
-                entityTable: "questionnaire_results", entityID: resultID,
-                patientID: patientID,
-                payload: ["after": resultRow, "answerCount": 1])
-            // No per-answer AuditLog.append — that is the gap this test documents.
-        }
-
-        let entries = try db.read { db in try AuditLogEntry.fetchAll(db) }
-        let answersLogged = entries.contains { $0.entityTable == "questionnaire_answers" }
-
-        XCTAssertTrue(answersLogged,
-            "questionnaire_answers are not individually logged. " +
-            "Fix: add AuditLog.append for each answer inside " +
-            "PatientRepository.insertQuestionnaireResult so the table is reconstructible.")
-    }
-
-    /// GOP entries inserted inline by PatientRepository.insertSession are not individually
-    /// logged — only the session row and a gopCount appear in the audit event. This test
-    /// fails until per-entry logging is added inside insertSession's for-loop.
-    func testSessionInlineGOPEntriesAreAuditLogged() throws {
-        let db = try makeDB()
-        let patientID = UUID().uuidString
-        let sessionID = UUID().uuidString
-        let gopID = UUID().uuidString
-
-        try db.write { db in
-            try insertPatient(id: patientID, into: db)
-            try db.execute(sql: """
-                INSERT INTO sessions
-                    (id, patientID, number, shortType, type, date,
-                     durationMinutes, topics, interventions, homework, note)
-                VALUES (?, ?, 1, 'E', 'Einzeltherapie', '2024-06-01', 50, '[]', '[]', '', '')
-                """, arguments: [sessionID, patientID])
-            try db.execute(sql: """
-                INSERT INTO gop_entries
-                    (id, sessionID, code, description, factor, basePrice,
-                     maxFactorNoJustification, maxFactor, commonFactors)
-                VALUES (?, ?, '860', 'Probatorische Sitzung', 2.3, 16.97, 2.3, 3.5, '[]')
-                """, arguments: [gopID, sessionID])
-            // Replicates what PatientRepository.insertSession actually logs:
-            let sessionRow = AuditLog.rowDict(try Row.fetchOne(db,
-                sql: "SELECT * FROM sessions WHERE id = ?", arguments: [sessionID]))
-            try AuditLog.append(db: db, eventType: "session.created",
-                entityTable: "sessions", entityID: sessionID, patientID: patientID,
-                payload: ["after": sessionRow, "gopCount": 1])
-            // No per-entry AuditLog.append for the GOP entries — that is the gap.
-        }
-
-        let entries = try db.read { db in try AuditLogEntry.fetchAll(db) }
-        let gopLogged = entries.contains { $0.entityTable == "gop_entries" }
-
-        XCTAssertTrue(gopLogged,
-            "GOP entries created with a session are not individually logged. " +
-            "Fix: add AuditLog.append inside the for-loop in " +
-            "PatientRepository.insertSession so gop_entries is reconstructible.")
     }
 }
