@@ -214,6 +214,12 @@ final class DatabaseManager: @unchecked Sendable {
             )
         }
 
+        migrator.registerMigration("v3") { db in
+            try db.alter(table: "documents") { t in
+                t.add(column: "isArchived", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         try migrator.migrate(db)
     }
 }

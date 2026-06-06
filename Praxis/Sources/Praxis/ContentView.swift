@@ -1089,13 +1089,21 @@ private struct DokumenteTab: View {
                     FilterPill(title: "Alle", isSelected: store.selectedDocumentCategory == nil) {
                         store.selectedDocumentCategory = nil
                     }
-                    ForEach([DocumentCategory.bericht, .gutachten, .einwilligung], id: \.id) { category in
+                    ForEach(DocumentCategory.allCases) { category in
                         FilterPill(title: category.rawValue, isSelected: store.selectedDocumentCategory == category) {
                             store.selectedDocumentCategory = category
                         }
                     }
                 }
                 Spacer()
+                Button {
+                    store.showArchivedDocuments.toggle()
+                } label: {
+                    Image(systemName: store.showArchivedDocuments ? "archivebox.fill" : "archivebox")
+                        .foregroundStyle(store.showArchivedDocuments ? PraxisPalette.primary : Color(hex: "#aaaaaa"))
+                }
+                .buttonStyle(.plain)
+                .help(store.showArchivedDocuments ? "Aktive Dokumente anzeigen" : "Archivierte Dokumente anzeigen")
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
@@ -2439,21 +2447,32 @@ private struct DocumentRow: View {
                 .frame(width: 32, height: 36)
                 .background(RoundedRectangle(cornerRadius: 5).fill(fileBackground))
             VStack(alignment: .leading, spacing: 1) {
-                Text(document.filename)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(PraxisPalette.text)
-                Text("\(document.source) · \(document.size)")
+                EditableInlineText(
+                    text: document.filename,
+                    font: .system(size: 13, weight: .semibold),
+                    foreground: PraxisPalette.text
+                ) { newName in store.updateDocument(document.id) { $0.filename = newName } }
+                Text("\(document.date) · \(document.size)")
                     .font(.system(size: 11))
                     .foregroundStyle(Color(hex: "#aaaaaa"))
             }
             Spacer(minLength: 0)
-            TagView(text: document.category.rawValue, background: document.category.background, foreground: document.category.foreground)
-            Text(document.date)
-                .font(.system(size: 11))
-                .foregroundStyle(Color(hex: "#aaaaaa"))
-                .frame(width: 68, alignment: .trailing)
+            Menu {
+                ForEach(DocumentCategory.allCases) { cat in
+                    Button(cat.rawValue) {
+                        store.updateDocument(document.id) { $0.category = cat }
+                    }
+                }
+            } label: {
+                TagView(text: document.category.rawValue, background: document.category.background, foreground: document.category.foreground)
+            }
+            .buttonStyle(.plain)
             Menu {
                 Button("Öffnen") { store.openDocument(document) }
+                Divider()
+                Button(document.isArchived ? "Aus Archiv entfernen" : "Archivieren") {
+                    store.updateDocument(document.id) { $0.isArchived.toggle() }
+                }
             } label: {
                 Text("•••")
                     .font(.system(size: 12))

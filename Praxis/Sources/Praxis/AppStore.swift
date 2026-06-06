@@ -40,6 +40,7 @@ final class AppStore {
     var patientSearchText = ""
     var documentSearchText = ""
     var selectedDocumentCategory: DocumentCategory? = nil
+    var showArchivedDocuments = false
     var installedQuestionnaires: [FHIRQuestionnaire] = []
     var selectedQuestionnaireID: String = ""
     var icdCatalog: [ICDCode] = []
@@ -144,7 +145,8 @@ final class AppStore {
         selectedPatient.documents.filter { doc in
             let searchMatch = documentSearchText.isEmpty || doc.filename.localizedCaseInsensitiveContains(documentSearchText)
             let categoryMatch = selectedDocumentCategory == nil || doc.category == selectedDocumentCategory
-            return searchMatch && categoryMatch
+            let archiveMatch = showArchivedDocuments ? doc.isArchived : !doc.isArchived
+            return searchMatch && categoryMatch && archiveMatch
         }
     }
 
@@ -437,6 +439,15 @@ final class AppStore {
             $0.timeline.insert(event, at: 0)
         }
         try? PatientRepository.insertDocument(document, event: event, patientID: patientID)
+    }
+
+    func updateDocument(_ documentID: UUID, mutate: (inout PatientDocument) -> Void) {
+        updateSelectedPatient { patient in
+            guard let index = patient.documents.firstIndex(where: { $0.id == documentID }) else { return }
+            mutate(&patient.documents[index])
+        }
+        guard let d = selectedPatient.documents.first(where: { $0.id == documentID }) else { return }
+        try? PatientRepository.updateDocument(d, patientID: selectedPatientID)
     }
 
     func openDocument(_ document: PatientDocument) {

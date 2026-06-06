@@ -420,8 +420,9 @@ struct PatientDocument: Identifiable {
     var category: DocumentCategory
     var date: String
     var year: String
+    var isArchived: Bool
 
-    init(id: UUID = UUID(), filename: String, fileType: String, size: String, source: String, category: DocumentCategory, date: String, year: String) {
+    init(id: UUID = UUID(), filename: String, fileType: String, size: String, source: String, category: DocumentCategory, date: String, year: String, isArchived: Bool = false) {
         self.id = id
         self.filename = filename
         self.fileType = fileType
@@ -430,6 +431,7 @@ struct PatientDocument: Identifiable {
         self.category = category
         self.date = date
         self.year = year
+        self.isArchived = isArchived
     }
 }
 

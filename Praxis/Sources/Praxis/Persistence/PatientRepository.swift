@@ -462,6 +462,21 @@ enum PatientRepository {
         }
     }
 
+    static func updateDocument(_ d: PatientDocument, patientID: UUID) throws {
+        try activeQueue.write { db in
+            let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM documents WHERE id = ?",
+                                             arguments: [d.id.uuidString])
+            try DocumentRecord(d, patientID: patientID).save(db)
+            let afterRow  = try Row.fetchOne(db, sql: "SELECT * FROM documents WHERE id = ?",
+                                              arguments: [d.id.uuidString])
+            try AuditLog.append(db: db, eventType: "document.updated",
+                entityTable: "documents", entityID: d.id.uuidString,
+                patientID: patientID.uuidString,
+                payload: AuditLog.diff(before: AuditLog.rowDict(beforeRow),
+                                       after:  AuditLog.rowDict(afterRow)))
+        }
+    }
+
     static func insertTimelineEvent(_ e: TimelineEvent, patientID: UUID) throws {
         try activeQueue.write { db in
             try TimelineEventRecord(e, patientID: patientID).insert(db)

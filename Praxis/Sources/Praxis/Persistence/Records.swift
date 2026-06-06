@@ -569,12 +569,14 @@ struct DocumentRecord: FetchableRecord, PersistableRecord {
     var category: String
     var date: String
     var year: String
+    var isArchived: Bool
 
     init(row: Row) {
         id = row["id"]; patientID = row["patientID"]
         filename = row["filename"]; fileType = row["fileType"]
         size = row["size"]; source = row["source"]
         category = row["category"]; date = row["date"]; year = row["year"]
+        isArchived = row["isArchived"]
     }
 
     func encode(to container: inout PersistenceContainer) {
@@ -582,6 +584,7 @@ struct DocumentRecord: FetchableRecord, PersistableRecord {
         container["filename"] = filename; container["fileType"] = fileType
         container["size"] = size; container["source"] = source
         container["category"] = category; container["date"] = date; container["year"] = year
+        container["isArchived"] = isArchived
     }
 
     init(_ d: PatientDocument, patientID: UUID) {
@@ -589,6 +592,7 @@ struct DocumentRecord: FetchableRecord, PersistableRecord {
         filename = d.filename; fileType = d.fileType
         size = d.size; source = d.source
         category = d.category.rawValue; date = d.date; year = d.year
+        isArchived = d.isArchived
     }
 
     func toDomain() -> PatientDocument {
@@ -596,7 +600,7 @@ struct DocumentRecord: FetchableRecord, PersistableRecord {
             id: UUID(uuidString: id) ?? UUID(),
             filename: filename, fileType: fileType, size: size, source: source,
             category: DocumentCategory(rawValue: category) ?? .sonstiges,
-            date: date, year: year
+            date: date, year: year, isArchived: isArchived
         )
     }
 }
