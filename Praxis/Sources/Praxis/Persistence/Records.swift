@@ -434,6 +434,7 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
 
     var id: String
     var patientID: String
+    var isoDate: String
     var dateLabel: String
     var dayNumber: String
     var month: String
@@ -448,6 +449,7 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
 
     init(row: Row) {
         id = row["id"]; patientID = row["patientID"]
+        isoDate = row["isoDate"] ?? ""   // nullable for rows inserted before migration v7
         dateLabel = row["dateLabel"]; dayNumber = row["dayNumber"]; month = row["month"]
         time = row["time"]; durationMinutes = row["durationMinutes"]
         title = row["title"]; type = row["type"]
@@ -457,6 +459,7 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
 
     func encode(to container: inout PersistenceContainer) {
         container["id"] = id; container["patientID"] = patientID
+        container["isoDate"] = isoDate
         container["dateLabel"] = dateLabel; container["dayNumber"] = dayNumber
         container["month"] = month; container["time"] = time
         container["durationMinutes"] = durationMinutes
@@ -467,6 +470,7 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
 
     init(_ a: AppointmentRecord, patientID: UUID) {
         id = a.id.uuidString; self.patientID = patientID.uuidString
+        isoDate = a.isoDate
         dateLabel = a.dateLabel; dayNumber = a.dayNumber; month = a.month
         time = a.time; durationMinutes = a.durationMinutes
         title = a.title; type = a.type
@@ -477,6 +481,7 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
     func toDomain() -> AppointmentRecord {
         AppointmentRecord(
             id: UUID(uuidString: id) ?? UUID(),
+            isoDate: isoDate,
             dateLabel: dateLabel, dayNumber: dayNumber, month: month,
             time: time, durationMinutes: durationMinutes,
             title: title, type: type,

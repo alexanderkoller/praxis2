@@ -54,6 +54,17 @@ final class AppStore {
     var selectedSessionID: UUID? = nil
     var showDocumentImporter = false
 
+    // MARK: - Kalender state
+    var kalenderWeekOffset: Int = 0
+    var planningPatientID: UUID? = nil
+
+    struct CalendarDraft {
+        var patientID: UUID? = nil
+        var type = MockData.appointmentTypes.first ?? "Therapiesitzung"
+        var recurrence = "Einmalig"
+    }
+    var calendarDraft = CalendarDraft()
+
     @ObservationIgnored private var pdfWindowControllers: [PDFWindowController] = []
 
     @ObservationIgnored private var questionnaireServer: QuestionnaireServer? = nil
@@ -161,6 +172,47 @@ final class AppStore {
 
     func questionnaireTitle(for id: String) -> String {
         installedQuestionnaires.first(where: { $0.id == id })?.displayTitle ?? id
+    }
+
+    func weekDates(offset: Int) -> [Date] {
+        var cal = Calendar(identifier: .iso8601)
+        cal.locale = Locale(identifier: "de_DE")
+        let now = Date()
+        let weekStart = cal.date(from: cal.dateComponents(
+            [.yearForWeekOfYear, .weekOfYear], from: now
+        ))!
+        let adjustedStart = cal.date(byAdding: .weekOfYear, value: offset, to: weekStart)!
+        return (0..<5).compactMap { cal.date(byAdding: .day, value: $0, to: adjustedStart) }
+    }
+
+    var kalenderWeekTitle: String {
+        let dates = weekDates(offset: kalenderWeekOffset)
+        guard let start = dates.first, let end = dates.last else { return "" }
+        var cal = Calendar(identifier: .iso8601)
+        cal.locale = Locale(identifier: "de_DE")
+        let weekNum = cal.component(.weekOfYear, from: start)
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "de_DE")
+        fmt.dateFormat = "d. MMMM"
+        let startStr = fmt.string(from: start)
+        fmt.dateFormat = "d. MMMM yyyy"
+        let endStr = fmt.string(from: end)
+        return "KW \(weekNum) · \(startStr)–\(endStr)"
+    }
+
+    var kalenderWeekAppointments: [(patient: Patient, appointment: AppointmentRecord)] {
+        let visibleISO = Set(weekDates(offset: kalenderWeekOffset).map { isoString(from: $0) })
+        return patients.flatMap { patient in
+            patient.appointments.compactMap { appt in
+                visibleISO.contains(appt.isoDate) ? (patient, appt) : nil
+            }
+        }
+    }
+
+    var kalenderWeekTermineCount: Int { kalenderWeekAppointments.count }
+
+    var kalenderWeekAbgesagtCount: Int {
+        kalenderWeekAppointments.filter { $0.appointment.status == .abgesagt }.count
     }
 
     // MARK: - Navigation
@@ -391,7 +443,16 @@ final class AppStore {
         fmt.dateFormat = "MMM"
         let month = fmt.string(from: Date())
         let day = String(Calendar.current.component(.day, from: Date()))
+        let draftFmt = DateFormatter()
+        draftFmt.locale = Locale(identifier: "de_DE")
+        draftFmt.dateFormat = "dd.MM.yyyy"
+        let isoFmt = DateFormatter()
+        isoFmt.locale = Locale(identifier: "en_US_POSIX")
+        isoFmt.dateFormat = "yyyy-MM-dd"
+        let resolvedDate = draftFmt.date(from: draftAppointment.date) ?? Date()
+        let isoDate = isoFmt.string(from: resolvedDate)
         let appointment = AppointmentRecord(
+            isoDate: isoDate,
             dateLabel: draftAppointment.date,
             dayNumber: day,
             month: month,
@@ -409,6 +470,70 @@ final class AppStore {
             $0.nextAppointmentText = "\(draftAppointment.date) · \(draftAppointment.time)"
         }
         try? PatientRepository.insertAppointment(appointment, patientID: selectedPatientID)
+    }
+
+    // MARK: - Kalender
+
+    func enterPlanningMode(patientID: UUID) {
+        planningPatientID = patientID
+        calendarDraft = CalendarDraft(patientID: patientID)
+        sidebarSelection = .kalender
+    }
+
+    func exitPlanningMode() {
+        planningPatientID = nil
+        calendarDraft = CalendarDraft()
+    }
+
+    func createAppointmentFromCalendar(patientID: UUID, isoDate: String, time: String) {
+        guard let pIdx = patients.firstIndex(where: { $0.id == patientID }) else { return }
+        let type = calendarDraft.type
+        let duration = MockData.duration(for: type)
+        let nextNumber = (patients[pIdx].appointments.compactMap(\.sessionNumber).max()
+            ?? patients[pIdx].sessionCount) + 1
+
+        let dateFmt = DateFormatter()
+        dateFmt.locale = Locale(identifier: "en_US_POSIX")
+        dateFmt.dateFormat = "yyyy-MM-dd"
+        let date = dateFmt.date(from: isoDate) ?? Date()
+
+        let labelFmt = DateFormatter()
+        labelFmt.locale = Locale(identifier: "de_DE")
+        labelFmt.dateFormat = "EEEE, d. MMMM"
+        let dateLabel = labelFmt.string(from: date)
+
+        let monthFmt = DateFormatter()
+        monthFmt.locale = Locale(identifier: "de_DE")
+        monthFmt.dateFormat = "MMM"
+        let month = monthFmt.string(from: date)
+        let dayNumber = String(Calendar.current.component(.day, from: date))
+
+        let appointment = AppointmentRecord(
+            isoDate: isoDate,
+            dateLabel: dateLabel,
+            dayNumber: dayNumber,
+            month: month,
+            time: time,
+            durationMinutes: duration,
+            title: "\(type) #\(nextNumber)",
+            type: type,
+            sessionNumber: nextNumber,
+            status: .geplant,
+            note: "",
+            isPast: false
+        )
+        patients[pIdx].appointments.insert(appointment, at: 0)
+        patients[pIdx].nextAppointmentText = "\(appointment.dateLabel) · \(time)"
+        try? PatientRepository.insertAppointment(appointment, patientID: patientID)
+        calendarDraft = CalendarDraft()
+    }
+
+    func markAppointmentAbgesagt(appointmentID: UUID, patientID: UUID) {
+        guard let pIdx = patients.firstIndex(where: { $0.id == patientID }),
+              let aIdx = patients[pIdx].appointments.firstIndex(where: { $0.id == appointmentID })
+        else { return }
+        patients[pIdx].appointments[aIdx].status = .abgesagt
+        try? PatientRepository.updateAppointmentStatus(id: appointmentID, status: .abgesagt)
     }
 
     // MARK: - Documents
@@ -624,6 +749,13 @@ final class AppStore {
         fmt.locale = Locale(identifier: "en_US_POSIX")
         fmt.dateFormat = "yyyy-MM-dd"
         return fmt.string(from: Date())
+    }
+
+    private func isoString(from date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.dateFormat = "yyyy-MM-dd"
+        return fmt.string(from: date)
     }
 
 

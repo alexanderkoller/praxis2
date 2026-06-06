@@ -16,7 +16,7 @@ struct ContentView: View {
             case .patienten:
                 PatientenView()
             case .kalender:
-                PlaceholderScreen(title: "Kalender", subtitle: "Noch nicht gestaltet. Die Terminlogik des Mocks ist bereits im Patientenbereich sichtbar.")
+                KalenderView()
             case .einstellungen:
                 PlaceholderScreen(title: "Einstellungen", subtitle: "Mock-Ansicht für Standardwerte, GOP-Faktoren und Praxisoptionen folgt im nächsten Schritt.")
             }
@@ -1040,16 +1040,63 @@ private struct TermineTab: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    AppointmentSection(title: "Geplante Termine", showsButton: true, appointments: store.selectedPatient.appointments.filter { !$0.isPast })
-                    AppointmentSection(title: "Vergangene Termine", showsButton: false, appointments: store.selectedPatient.appointments.filter(\.isPast))
+            VStack(spacing: 0) {
+                // Action buttons row
+                HStack(spacing: 8) {
+                    Button {
+                        // No-op: the right panel already shows the new-appointment form
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "plus")
+                            Text("Neuer Termin")
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .background(RoundedRectangle(cornerRadius: 7).fill(PraxisPalette.primary))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        store.enterPlanningMode(patientID: store.selectedPatientID)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text("📆")
+                            Text("Im Kalender planen")
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#7c3aed"))
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(Color(hex: "#f3e8ff"))
+                                .stroke(Color(hex: "#d8b4fe"), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 18)
-                .padding(.vertical, 16)
-            }
-            .overlay(alignment: .trailing) {
-                Rectangle().fill(Color(hex: "#f0f0f5")).frame(width: 1)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(PraxisPalette.border).frame(height: 1)
+                }
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        AppointmentSection(title: "Geplante Termine", showsButton: false, appointments: store.selectedPatient.appointments.filter { !$0.isPast })
+                        AppointmentSection(title: "Vergangene Termine", showsButton: false, appointments: store.selectedPatient.appointments.filter(\.isPast))
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 16)
+                }
+                .overlay(alignment: .trailing) {
+                    Rectangle().fill(Color(hex: "#f0f0f5")).frame(width: 1)
+                }
             }
 
             VStack(alignment: .leading, spacing: 14) {
@@ -2822,7 +2869,7 @@ private struct PrimaryIconButton: View {
     }
 }
 
-private struct InteractiveHoverModifier: ViewModifier {
+struct InteractiveHoverModifier: ViewModifier {
     let cornerRadius: CGFloat
     let lift: Bool
     let isEnabled: Bool
@@ -2857,7 +2904,7 @@ private struct InteractiveHoverModifier: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func interactiveHover(cornerRadius: CGFloat, lift: Bool = true, isEnabled: Bool = true) -> some View {
         modifier(InteractiveHoverModifier(cornerRadius: cornerRadius, lift: lift, isEnabled: isEnabled))
     }

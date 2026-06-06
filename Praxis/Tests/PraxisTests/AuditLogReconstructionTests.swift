@@ -385,6 +385,7 @@ final class AuditLogReconstructionTests: XCTestCase {
 
         // ── appointment ───────────────────────────────────────────────────
         let appt = AppointmentRecord(
+            isoDate: "2024-06-10",
             dateLabel: "Mo, 10. Jun 2024", dayNumber: "10", month: "Jun",
             time: "09:00", durationMinutes: 50,
             title: "Sitzung", type: "Einzeltherapie",

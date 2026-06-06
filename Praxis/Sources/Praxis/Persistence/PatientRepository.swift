@@ -426,6 +426,28 @@ enum PatientRepository {
         }
     }
 
+    static func updateAppointmentStatus(id: UUID, status: AppointmentStatus) throws {
+        try activeQueue.write { db in
+            let beforeRow = try Row.fetchOne(db,
+                sql: "SELECT * FROM appointments WHERE id = ?",
+                arguments: [id.uuidString])
+            try AppointmentRecord_DB
+                .filter(Column("id") == id.uuidString)
+                .updateAll(db, [Column("status").set(to: status.rawValue)])
+            let afterRow = try Row.fetchOne(db,
+                sql: "SELECT * FROM appointments WHERE id = ?",
+                arguments: [id.uuidString])
+            let patientID = AuditLog.rowDict(beforeRow)["patientID"] as? String
+            try AuditLog.append(db: db,
+                eventType: "appointment.statusChanged",
+                entityTable: "appointments",
+                entityID: id.uuidString,
+                patientID: patientID,
+                payload: AuditLog.diff(before: AuditLog.rowDict(beforeRow),
+                                       after: AuditLog.rowDict(afterRow)))
+        }
+    }
+
     // MARK: - Questionnaire results
 
     static func insertQuestionnaireResult(_ r: QuestionnaireResultRecord, answers: [QuestionnaireAnswer], patientID: UUID) throws {

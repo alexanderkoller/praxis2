@@ -264,6 +264,14 @@ final class DatabaseManager: @unchecked Sendable {
                                 payload: ["migration": "v6", "changes": "remaining non-ISO dates to yyyy-MM-dd"])
         }
 
+        migrator.registerMigration("v7") { db in
+            try db.alter(table: "appointments") { t in
+                t.add(column: "isoDate", .text).notNull().defaults(to: "")
+            }
+            try AuditLog.append(db: db, eventType: "db.migrated",
+                                payload: ["migration": "v7", "changes": "appointments.isoDate column added"])
+        }
+
         try migrator.migrate(db)
     }
 }

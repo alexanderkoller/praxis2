@@ -322,6 +322,7 @@ struct SessionRecord: Identifiable {
 
 struct AppointmentRecord: Identifiable {
     let id: UUID
+    let isoDate: String          // "yyyy-MM-dd"
     var dateLabel: String
     var dayNumber: String
     var month: String
@@ -336,6 +337,7 @@ struct AppointmentRecord: Identifiable {
 
     init(
         id: UUID = UUID(),
+        isoDate: String,
         dateLabel: String,
         dayNumber: String,
         month: String,
@@ -349,6 +351,7 @@ struct AppointmentRecord: Identifiable {
         isPast: Bool
     ) {
         self.id = id
+        self.isoDate = isoDate
         self.dateLabel = dateLabel
         self.dayNumber = dayNumber
         self.month = month
@@ -562,6 +565,22 @@ enum MockData {
     static let recurrenceOptions = ["Einmalig", "Wöchentlich", "Zweiwöchentlich"]
     static let appointmentTypes = ["Therapiesitzung", "Probatorik", "Erstgespräch", "Krisenintervention", "Telefonat"]
 
+    static let appointmentTypeDurations: [String: Int] = [
+        "Therapiesitzung": 50,
+        "Probatorik": 100,
+        "Erstgespräch": 50,
+        "Krisenintervention": 50,
+        "Telefonat": 20
+    ]
+
+    static func duration(for type: String) -> Int {
+        appointmentTypeDurations[type] ?? 50
+    }
+
+    static func typeLabel(for type: String) -> String {
+        "\(type) (\(duration(for: type)) min)"
+    }
+
     static let patients: [Patient] = [
         Patient(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
@@ -655,11 +674,11 @@ enum MockData {
                 )
             ],
             appointments: [
-                AppointmentRecord(dateLabel: "Donnerstag, 5. Juni", dayNumber: "5", month: "Jun", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #8", type: "Verhaltenstherapie", sessionNumber: 8, status: .heute, isPast: false),
-                AppointmentRecord(dateLabel: "Donnerstag, 12. Juni", dayNumber: "12", month: "Jun", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #9", type: "Verhaltenstherapie", sessionNumber: 9, status: .geplant, isPast: false),
-                AppointmentRecord(dateLabel: "Donnerstag, 19. Juni", dayNumber: "19", month: "Jun", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #10", type: "Verhaltenstherapie", sessionNumber: 10, status: .geplant, isPast: false),
-                AppointmentRecord(dateLabel: "Donnerstag, 29. Mai", dayNumber: "29", month: "Mai", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #7", type: "Verhaltenstherapie", sessionNumber: 7, status: .erfolgt, isPast: true),
-                AppointmentRecord(dateLabel: "Donnerstag, 8. Mai", dayNumber: "8", month: "Mai", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #5", type: "Verhaltenstherapie", sessionNumber: 5, status: .abgesagt, isPast: true)
+                AppointmentRecord(isoDate: "2026-06-05", dateLabel: "Donnerstag, 5. Juni", dayNumber: "5", month: "Jun", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #8", type: "Verhaltenstherapie", sessionNumber: 8, status: .heute, isPast: false),
+                AppointmentRecord(isoDate: "2026-06-12", dateLabel: "Donnerstag, 12. Juni", dayNumber: "12", month: "Jun", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #9", type: "Verhaltenstherapie", sessionNumber: 9, status: .geplant, isPast: false),
+                AppointmentRecord(isoDate: "2026-06-19", dateLabel: "Donnerstag, 19. Juni", dayNumber: "19", month: "Jun", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #10", type: "Verhaltenstherapie", sessionNumber: 10, status: .geplant, isPast: false),
+                AppointmentRecord(isoDate: "2026-05-29", dateLabel: "Donnerstag, 29. Mai", dayNumber: "29", month: "Mai", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #7", type: "Verhaltenstherapie", sessionNumber: 7, status: .erfolgt, isPast: true),
+                AppointmentRecord(isoDate: "2026-05-08", dateLabel: "Donnerstag, 8. Mai", dayNumber: "8", month: "Mai", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #5", type: "Verhaltenstherapie", sessionNumber: 5, status: .abgesagt, isPast: true)
             ],
             questionnaireResults: [
                 QuestionnaireResultRecord(questionnaireName: "PHQ-9", description: "Depressivität", date: "2025-06-05", sessionLabel: "Sitzung #8", score: 11, maxScore: 27, tier: .mittel, answers: [
@@ -735,8 +754,8 @@ enum MockData {
                 SessionRecord(number: 12, shortType: "VT", type: "Verhaltenstherapie", date: "2025-06-05", durationMinutes: 50, topics: ["Erschöpfung"], interventions: ["Pacing"], homework: "Belastungsampel führen", note: "Fokus auf Selbstfürsorge und Priorisierung.", gopEntries: [GOPEntry(code: "870", description: "Psychotherapeutische Behandlung, Einzelbehandlung, 50 Minuten", factor: 2.3, basePrice: 40.22)])
             ],
             appointments: [
-                AppointmentRecord(dateLabel: "Donnerstag, 5. Juni", dayNumber: "5", month: "Jun", time: "09:00", durationMinutes: 50, title: "Therapiesitzung #12", type: "Verhaltenstherapie", sessionNumber: 12, status: .erfolgt, isPast: true),
-                AppointmentRecord(dateLabel: "Montag, 9. Juni", dayNumber: "9", month: "Jun", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #13", type: "Verhaltenstherapie", sessionNumber: 13, status: .geplant, isPast: false)
+                AppointmentRecord(isoDate: "2026-06-05", dateLabel: "Donnerstag, 5. Juni", dayNumber: "5", month: "Jun", time: "09:00", durationMinutes: 50, title: "Therapiesitzung #12", type: "Verhaltenstherapie", sessionNumber: 12, status: .erfolgt, isPast: true),
+                AppointmentRecord(isoDate: "2026-06-09", dateLabel: "Montag, 9. Juni", dayNumber: "9", month: "Jun", time: "10:00", durationMinutes: 50, title: "Therapiesitzung #13", type: "Verhaltenstherapie", sessionNumber: 13, status: .geplant, isPast: false)
             ],
             questionnaireResults: [
                 QuestionnaireResultRecord(questionnaireName: "WHO-5", description: "Wohlbefinden", date: "2025-06-05", sessionLabel: "Sitzung #12", score: 13, maxScore: 25, tier: .leicht, answers: [QuestionnaireAnswer(question: "Ich war fröhlich", answer: "Etwas mehr als die Hälfte der Zeit", score: 2)])
@@ -787,7 +806,7 @@ enum MockData {
                 SessionRecord(number: 2, shortType: "Probatorik", type: "Probatorik", date: "2025-06-05", durationMinutes: 50, topics: ["Erstkontakt"], interventions: ["Anamnese"], homework: "Symptomtagebuch beginnen", note: "Probatorische Vertiefung der Symptomgeschichte.", gopEntries: [GOPEntry(code: "801", description: "Probatorische Sitzung", factor: 2.3, basePrice: 34.12)])
             ],
             appointments: [
-                AppointmentRecord(dateLabel: "Donnerstag, 5. Juni", dayNumber: "5", month: "Jun", time: "12:00", durationMinutes: 50, title: "Probatorik #2", type: "Probatorik", sessionNumber: 2, status: .heute, isPast: false)
+                AppointmentRecord(isoDate: "2026-06-05", dateLabel: "Donnerstag, 5. Juni", dayNumber: "5", month: "Jun", time: "12:00", durationMinutes: 50, title: "Probatorik #2", type: "Probatorik", sessionNumber: 2, status: .heute, isPast: false)
             ],
             questionnaireResults: [],
             documents: [],
@@ -975,6 +994,23 @@ extension String {
         let parts = split(separator: "-")
         guard parts.count == 3, parts[0].count == 4 else { return self }
         return "\(parts[2]).\(parts[1]).\(parts[0])"
+    }
+}
+
+extension AppointmentRecord {
+    /// Pixel offset from the top of the 08:00 grid start. 1px = 1 minute.
+    var gridYOffset: CGFloat {
+        let parts = time.split(separator: ":")
+        guard parts.count == 2,
+              let h = Int(parts[0]),
+              let m = Int(parts[1]) else { return 0 }
+        return CGFloat(max(0, (h - 8) * 60 + m))
+    }
+
+    /// Block height: ceil(durationMinutes / 30) × 30 − 2 px.
+    var gridHeight: CGFloat {
+        let slots = Int(ceil(Double(durationMinutes) / 30.0))
+        return CGFloat(slots * 30 - 2)
     }
 }
 
