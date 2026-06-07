@@ -72,7 +72,7 @@ final class CalendarTests: XCTestCase {
             title: "Test",
             type: "Therapiesitzung",
             sessionNumber: 1,
-            status: .geplant,
+            status: .scheduled,
             note: "",
             isPast: false
         )
@@ -85,9 +85,10 @@ final class CalendarTests: XCTestCase {
 final class CalendarStoreTests: XCTestCase {
 
     private var store: AppStore!
+    private var db: DatabaseQueue!
 
     override func setUp() async throws {
-        let db = try DatabaseQueue()          // in-memory, no SQLCipher needed
+        db = try DatabaseQueue()          // in-memory, no SQLCipher needed
         try DatabaseManager.runMigrations(db)
         PatientRepository._testDBQueue = db   // redirect all DB calls to in-memory
         store = AppStore()                    // fetchAll returns [], seeds MockData
@@ -96,6 +97,7 @@ final class CalendarStoreTests: XCTestCase {
     override func tearDown() async throws {
         PatientRepository._testDBQueue = nil
         store = nil
+        db = nil
     }
 
     func testWeekDatesForOffset0ContainsFiveWorkdays() {
@@ -137,6 +139,7 @@ final class CalendarStoreTests: XCTestCase {
 
     func testCreateAppointmentFromCalendarOnceCreatesSingleAppointment() {
         let patientID = weberPatientID()
+        let beforeSessions = store.patients.first { $0.id == patientID }!.sessions.count
         store.calendarDraft = AppStore.CalendarDraft(
             patientID: patientID,
             type: "Telefonat",
@@ -152,6 +155,11 @@ final class CalendarStoreTests: XCTestCase {
         let created = createdAppointments(patientID: patientID, type: "Telefonat", time: "08:30")
         XCTAssertEqual(created.map(\.sessionNumber), [3])
         XCTAssertEqual(created.map(\.isoDate), ["2026-06-02"])
+        XCTAssertEqual(store.patients.first { $0.id == patientID }!.sessions.count, beforeSessions + 1)
+        let appointment = created[0]
+        let session = store.patients.first { $0.id == patientID }!.sessions.first { $0.id == appointment.sessionID }
+        XCTAssertNotNil(session)
+        XCTAssertEqual(session?.appointmentID, appointment.id)
     }
 
     func testCreateAppointmentFromCalendarWeeklyCreatesSeriesUntilSessionLimit() {
@@ -171,6 +179,11 @@ final class CalendarStoreTests: XCTestCase {
         let created = createdAppointments(patientID: patientID, type: "Therapiesitzung", time: "09:30")
         XCTAssertEqual(created.map(\.sessionNumber), [3, 4])
         XCTAssertEqual(created.map(\.isoDate), ["2026-06-02", "2026-06-09"])
+        XCTAssertEqual(Set(created.compactMap(\.seriesID)).count, 1)
+        for appointment in created {
+            let session = store.patients.first { $0.id == patientID }!.sessions.first { $0.id == appointment.sessionID }
+            XCTAssertEqual(session?.appointmentID, appointment.id)
+        }
     }
 
     func testCreateAppointmentFromCalendarBiweeklyUsesFourteenDaySpacing() {
@@ -192,6 +205,91 @@ final class CalendarStoreTests: XCTestCase {
         XCTAssertEqual(created.map(\.isoDate), ["2026-06-02", "2026-06-16"])
     }
 
+    func testFinishSelectedSessionMarksDocumentationDoneWithoutRemovingGOPEditability() {
+        let patientID = weberPatientID()
+        store.calendarDraft = AppStore.CalendarDraft(patientID: patientID, type: "Telefonat", recurrence: "Einmalig")
+        store.createAppointmentFromCalendar(patientID: patientID, isoDate: "2026-06-02", time: "08:30")
+        let appointment = createdAppointments(patientID: patientID, type: "Telefonat", time: "08:30")[0]
+
+        store.openDocumentation(for: appointment.id, patientID: patientID)
+        store.addGOPEntry(code: "3", description: "Eingehende Beratung", factor: 2.3, basePrice: 8.74)
+        store.finishSelectedSession()
+
+        let patient = store.patients.first { $0.id == patientID }!
+        let session = patient.sessions.first { $0.id == appointment.sessionID }
+        let updatedAppointment = patient.appointments.first { $0.id == appointment.id }
+        XCTAssertEqual(updatedAppointment?.status, .finished)
+        XCTAssertEqual(session?.isFinished, true)
+        XCTAssertEqual(session?.gopEntries.first?.billingStatus, .unbilled)
+    }
+
+    func testNoShowCreatesDefaultBillableGOPRows() {
+        let patientID = weberPatientID()
+        store.calendarDraft = AppStore.CalendarDraft(patientID: patientID, type: "Therapiesitzung", recurrence: "Einmalig")
+        store.createAppointmentFromCalendar(patientID: patientID, isoDate: "2026-06-02", time: "08:45")
+        let appointment = createdAppointments(patientID: patientID, type: "Therapiesitzung", time: "08:45")[0]
+
+        store.markNoShow(appointmentID: appointment.id, patientID: patientID)
+
+        let patient = store.patients.first { $0.id == patientID }!
+        let updatedAppointment = patient.appointments.first { $0.id == appointment.id }
+        let session = patient.sessions.first { $0.id == appointment.sessionID }
+        XCTAssertEqual(updatedAppointment?.status, .noShow)
+        XCTAssertFalse(session?.gopEntries.isEmpty ?? true)
+        XCTAssertEqual(session?.gopEntries.first?.billingStatus, .unbilled)
+    }
+
+    func testBillingQueueOnlyIncludesFinishedAppointments() {
+        let patientID = weberPatientID()
+        store.calendarDraft = AppStore.CalendarDraft(patientID: patientID, type: "Telefonat", recurrence: "Einmalig")
+        store.createAppointmentFromCalendar(patientID: patientID, isoDate: "2026-06-02", time: "08:50")
+        let appointment = createdAppointments(patientID: patientID, type: "Telefonat", time: "08:50")[0]
+
+        store.openDocumentation(for: appointment.id, patientID: patientID)
+        store.addGOPEntry(code: "3", description: "Eingehende Beratung", factor: 2.3, basePrice: 8.74)
+        XCTAssertFalse(store.unbilledGOPItems.contains { $0.appointment.id == appointment.id })
+
+        store.finishSelectedSession()
+        XCTAssertTrue(store.unbilledGOPItems.contains { $0.appointment.id == appointment.id })
+    }
+
+    func testLifecycleActionsAreAuditLogged() throws {
+        let patientID = weberPatientID()
+        store.calendarDraft = AppStore.CalendarDraft(patientID: patientID, type: "Therapiesitzung", recurrence: "Einmalig")
+
+        store.createAppointmentFromCalendar(patientID: patientID, isoDate: "2026-06-02", time: "08:55")
+        var eventTypes = try auditEventTypes()
+        XCTAssertTrue(eventTypes.contains("session.created"))
+        XCTAssertTrue(eventTypes.contains("appointment.created"))
+
+        let appointment = createdAppointments(patientID: patientID, type: "Therapiesitzung", time: "08:55")[0]
+        store.openDocumentation(for: appointment.id, patientID: patientID)
+        store.addGOPEntry(code: "3", description: "Eingehende Beratung", factor: 2.3, basePrice: 8.74)
+        store.finishSelectedSession()
+        eventTypes = try auditEventTypes()
+        XCTAssertTrue(eventTypes.contains("gop_entry.created"))
+        XCTAssertTrue(eventTypes.contains("session.updated"))
+        XCTAssertTrue(eventTypes.contains("appointment.statusChanged"))
+
+        let entryID = store.selectedSession!.gopEntries[0].id
+        store.markGOPEntryBilled(entryID)
+        eventTypes = try auditEventTypes()
+        XCTAssertTrue(eventTypes.contains("gop_entry.billing_status_updated"))
+    }
+
+    func testNoShowStateChangesAreAuditLogged() throws {
+        let patientID = weberPatientID()
+        store.calendarDraft = AppStore.CalendarDraft(patientID: patientID, type: "Therapiesitzung", recurrence: "Einmalig")
+        store.createAppointmentFromCalendar(patientID: patientID, isoDate: "2026-06-02", time: "09:05")
+        let appointment = createdAppointments(patientID: patientID, type: "Therapiesitzung", time: "09:05")[0]
+
+        store.markNoShow(appointmentID: appointment.id, patientID: patientID)
+
+        let eventTypes = try auditEventTypes()
+        XCTAssertTrue(eventTypes.contains("gop_entry.created"))
+        XCTAssertTrue(eventTypes.contains("appointment.statusChanged"))
+    }
+
     private func weberPatientID() -> UUID {
         store.patients.first { $0.lastName == "Weber" }!.id
     }
@@ -202,5 +300,11 @@ final class CalendarStoreTests: XCTestCase {
             .appointments
             .filter { $0.type == type && $0.time == time }
             .sorted { ($0.sessionNumber ?? 0) < ($1.sessionNumber ?? 0) }
+    }
+
+    private func auditEventTypes() throws -> [String] {
+        try db.read { db in
+            try AuditLogEntry.fetchAll(db).map(\.eventType)
+        }
     }
 }

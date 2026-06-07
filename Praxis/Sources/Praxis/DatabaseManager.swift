@@ -272,6 +272,31 @@ final class DatabaseManager: @unchecked Sendable {
                                 payload: ["migration": "v7", "changes": "appointments.isoDate column added"])
         }
 
+        migrator.registerMigration("v8") { db in
+            try db.alter(table: "sessions") { t in
+                t.add(column: "appointmentID", .text).notNull().defaults(to: "")
+                t.add(column: "isFinished", .boolean).notNull().defaults(to: false)
+                t.add(column: "finishedAt", .text)
+            }
+            try db.alter(table: "appointments") { t in
+                t.add(column: "seriesID", .text)
+                t.add(column: "sessionID", .text).notNull().defaults(to: "")
+            }
+            try db.alter(table: "gop_entries") { t in
+                t.add(column: "billingStatus", .text).notNull().defaults(to: "Offen")
+            }
+            try db.execute(sql: """
+                UPDATE appointments SET status = CASE status
+                    WHEN 'Heute' THEN 'Geplant'
+                    WHEN 'Erfolgt' THEN 'Fertig'
+                    WHEN 'Entfallen' THEN 'Abgesagt'
+                    ELSE status
+                END
+                """)
+            try AuditLog.append(db: db, eventType: "db.migrated",
+                                payload: ["migration": "v8", "changes": "appointment lifecycle links and billing state"])
+        }
+
         try migrator.migrate(db)
     }
 }

@@ -74,10 +74,12 @@ enum PatientRepository {
             let interventions: [String] = (try? JSONDecoder().decode([String].self, from: Data(s.interventionsJSON.utf8))) ?? []
             return SessionRecord(
                 id: UUID(uuidString: s.id) ?? UUID(),
+                appointmentID: UUID(uuidString: s.appointmentID) ?? UUID(),
                 number: s.number, shortType: s.shortType, type: s.type,
                 date: s.date, durationMinutes: s.durationMinutes,
                 topics: topics, interventions: interventions,
                 homework: s.homework, note: s.note,
+                isFinished: s.isFinished, finishedAt: s.finishedAt,
                 gopEntries: gops
             )
         }
@@ -339,14 +341,14 @@ enum PatientRepository {
             let patientID = AuditLog.rowDict(beforeRow)["patientID"] as? String
             try db.execute(
                 sql: """
-                    UPDATE sessions SET shortType=?, type=?, date=?, durationMinutes=?,
-                    topics=?, interventions=?, homework=?, note=? WHERE id=?
+                    UPDATE sessions SET appointmentID=?, shortType=?, type=?, date=?, durationMinutes=?,
+                    topics=?, interventions=?, homework=?, note=?, isFinished=?, finishedAt=? WHERE id=?
                     """,
                 arguments: [
-                    s.shortType, s.type, s.date, s.durationMinutes,
+                    s.appointmentID.uuidString, s.shortType, s.type, s.date, s.durationMinutes,
                     (try? String(data: JSONEncoder().encode(s.topics), encoding: .utf8)) ?? "[]",
                     (try? String(data: JSONEncoder().encode(s.interventions), encoding: .utf8)) ?? "[]",
-                    s.homework, s.note,
+                    s.homework, s.note, s.isFinished, s.finishedAt,
                     s.id.uuidString
                 ]
             )
@@ -382,6 +384,7 @@ enum PatientRepository {
             let beforeRow = try Row.fetchOne(db, sql: "SELECT * FROM gop_entries WHERE id = ?",
                                              arguments: [id.uuidString])
             let beforeDict = AuditLog.rowDict(beforeRow)
+            guard BillingStatus(rawValue: beforeDict["billingStatus"] as? String ?? BillingStatus.unbilled.rawValue)?.isEditable == true else { return }
             let sessionID = beforeDict["sessionID"] as? String
             let patientID = try sessionID.flatMap {
                 try String.fetchOne(db, sql: "SELECT patientID FROM sessions WHERE id = ?", arguments: [$0])
@@ -403,12 +406,40 @@ enum PatientRepository {
                 JOIN sessions s ON s.id = g.sessionID
                 WHERE g.id = ?
                 """, arguments: [id.uuidString])
+            let billingStatus = try String.fetchOne(db,
+                sql: "SELECT billingStatus FROM gop_entries WHERE id = ?", arguments: [id.uuidString])
+            guard BillingStatus(rawValue: billingStatus ?? BillingStatus.unbilled.rawValue)?.isEditable == true else { return }
             try db.execute(sql: "UPDATE gop_entries SET factor = ? WHERE id = ?",
                            arguments: [factor, id.uuidString])
             try AuditLog.append(db: db, eventType: "gop_entry.factor_updated",
                 entityTable: "gop_entries", entityID: id.uuidString,
                 patientID: patientID,
                 payload: ["changes": ["factor": ["b": oldFactor.map { $0 as Any } ?? NSNull(), "a": factor]]])
+        }
+    }
+
+    static func updateGOPBillingStatus(id: UUID, status: BillingStatus) throws {
+        try activeQueue.write { db in
+            let beforeRow = try Row.fetchOne(db,
+                sql: "SELECT * FROM gop_entries WHERE id = ?",
+                arguments: [id.uuidString])
+            let beforeDict = AuditLog.rowDict(beforeRow)
+            let sessionID = beforeDict["sessionID"] as? String
+            let patientID = try sessionID.flatMap {
+                try String.fetchOne(db, sql: "SELECT patientID FROM sessions WHERE id = ?", arguments: [$0])
+            }
+            try db.execute(sql: "UPDATE gop_entries SET billingStatus = ? WHERE id = ?",
+                           arguments: [status.rawValue, id.uuidString])
+            let afterRow = try Row.fetchOne(db,
+                sql: "SELECT * FROM gop_entries WHERE id = ?",
+                arguments: [id.uuidString])
+            try AuditLog.append(db: db,
+                eventType: "gop_entry.billing_status_updated",
+                entityTable: "gop_entries",
+                entityID: id.uuidString,
+                patientID: patientID,
+                payload: AuditLog.diff(before: beforeDict,
+                                       after: AuditLog.rowDict(afterRow)))
         }
     }
 
@@ -443,6 +474,25 @@ enum PatientRepository {
                 entityTable: "appointments",
                 entityID: id.uuidString,
                 patientID: patientID,
+                payload: AuditLog.diff(before: AuditLog.rowDict(beforeRow),
+                                       after: AuditLog.rowDict(afterRow)))
+        }
+    }
+
+    static func updateAppointment(_ a: AppointmentRecord, patientID: UUID) throws {
+        try activeQueue.write { db in
+            let beforeRow = try Row.fetchOne(db,
+                sql: "SELECT * FROM appointments WHERE id = ?",
+                arguments: [a.id.uuidString])
+            try AppointmentRecord_DB(a, patientID: patientID).save(db)
+            let afterRow = try Row.fetchOne(db,
+                sql: "SELECT * FROM appointments WHERE id = ?",
+                arguments: [a.id.uuidString])
+            try AuditLog.append(db: db,
+                eventType: "appointment.updated",
+                entityTable: "appointments",
+                entityID: a.id.uuidString,
+                patientID: patientID.uuidString,
                 payload: AuditLog.diff(before: AuditLog.rowDict(beforeRow),
                                        after: AuditLog.rowDict(afterRow)))
         }

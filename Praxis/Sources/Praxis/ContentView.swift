@@ -17,6 +17,8 @@ struct ContentView: View {
                 PatientenView()
             case .calendar:
                 CalendarView()
+            case .billing:
+                BillingView()
             case .einstellungen:
                 PlaceholderScreen(title: "Einstellungen", subtitle: "Mock-Ansicht für Standardwerte, GOP-Faktoren und Praxisoptionen folgt im nächsten Schritt.")
             }
@@ -47,7 +49,7 @@ private struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            ForEach([SidebarItem.heute, .patienten, .calendar], id: \.id) { item in
+            ForEach([SidebarItem.heute, .patienten, .calendar, .billing], id: \.id) { item in
                 SidebarButton(title: item.rawValue, systemImage: item.systemImage, isSelected: store.sidebarSelection == item) {
                     store.sidebarSelection = item
                 }
@@ -129,16 +131,12 @@ private struct HeuteView: View {
                                     .padding(.vertical, 4)
                             }
 
-                            AppointmentAgendaCard(
-                                patientName: entry.patient.fullName,
-                                subtitle: entry.appointment.type + (entry.appointment.sessionNumber.map { " · #\($0)" } ?? ""),
-                                time: entry.appointment.time,
-                                duration: entry.appointment.durationMinutes,
-                                status: entry.appointment.status,
-                                isSelected: store.selectedAppointmentID == entry.appointment.id
-                            ) {
-                                store.selectPatientByAppointment(entry.appointment.id)
-                            }
+                            AppointmentLifecycleCard(
+                                patient: entry.patient,
+                                appointment: entry.appointment,
+                                session: store.linkedSession(for: entry.appointment, in: entry.patient),
+                                compact: true
+                            )
                         }
                     }
                     .padding(10)
@@ -290,8 +288,6 @@ private struct PatientDetailHost: View {
                 StammdatenTab()
             case .anamnese:
                 AnamneseTab()
-            case .sitzungen:
-                SitzungenTab()
             case .frageboegen:
                 FrageboegenTab()
             case .termine:
@@ -338,7 +334,7 @@ private struct PatientHeader: View {
 
             if showsTodayActions {
                 GhostButton("Abgesagt") {}
-            } else if store.patientTab == .stammdaten || store.patientTab == .anamnese || store.patientTab == .sitzungen {
+            } else if store.patientTab == .stammdaten || store.patientTab == .anamnese || store.patientTab == .termine {
                 AutoSaveIndicator()
             }
         }
@@ -475,7 +471,7 @@ private struct OverviewTab: View {
                                 switch event.kind {
                                 case .session:
                                     store.selectSession(event.sourceID)
-                                    store.patientTab = .sitzungen
+                                    store.patientTab = .termine
                                 case .document:
                                     if let doc = store.selectedPatient.documents.first(where: { $0.id == event.sourceID }) {
                                         store.openDocument(doc)
@@ -559,6 +555,20 @@ private struct StammdatenTab: View {
                         InputField(title: "Krankenkasse", text: patientBinding(\.insurer))
                         InputField(title: "Versichertennummer", text: patientBinding(\.insurerNumber))
                         InputField(title: "Status", text: patientBinding(\.insurerStatus))
+                    }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 4), spacing: 10) {
+                        InputField(title: "Bewilligtes Kontingent", text: Binding(
+                            get: { "\(store.selectedPatient.sessionLimit)" },
+                            set: { value in
+                                let cleaned = value.filter(\.isNumber)
+                                if let count = Int(cleaned) {
+                                    store.updateSelectedPatient { $0.sessionLimit = count }
+                                }
+                            }
+                        ))
+                        QuotaMetric(title: "Geplant", value: "\(store.selectedPatient.appointments.filter { $0.status != .cancelled }.count)")
+                        QuotaMetric(title: "Fertig", value: "\(store.selectedPatient.appointments.filter { $0.status == .finished }.count)")
+                        QuotaMetric(title: "Verbleibend", value: "\(max(0, store.selectedPatient.sessionLimit - store.selectedPatient.appointments.filter { $0.status != .cancelled }.count))")
                     }
                 }
 
@@ -778,60 +788,23 @@ private struct AnamneseTab: View {
     }
 }
 
-private struct SitzungenTab: View {
-    @Environment(AppStore.self) private var store
-
-    var body: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Sitzungen")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color(hex: "#aaaaaa"))
-                        .textCase(.uppercase)
-                    Spacer()
-                    PrimaryIconButton("Neu", systemImage: "plus") {
-                        store.addSession()
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Color(hex: "#ebebef")).frame(height: 1)
-                }
-
-                ScrollView {
-                    VStack(spacing: 3) {
-                        ForEach(store.selectedPatientSessions) { session in
-                            SessionListCard(session: session, isActive: store.selectedSessionID == session.id) {
-                                store.selectSession(session.id)
-                            }
-                        }
-                    }
-                    .padding(6)
-                }
-            }
-            .frame(width: 220)
-            .background(Color(hex: "#fafafa"))
-            .overlay(alignment: .trailing) {
-                Rectangle().fill(Color(hex: "#ebebef")).frame(width: 1)
-            }
-
-            if let session = store.selectedSession {
-                SessionEditor(session: session)
-            } else {
-                PlaceholderScreen(title: "Keine Sitzung", subtitle: "Wähle eine Sitzung aus der linken Liste.")
-            }
-        }
-    }
-}
-
 private struct SessionEditor: View {
     @Environment(AppStore.self) private var store
     let session: SessionRecord
+    var onFinish: (() -> Void)? = nil
     @State private var topicDraft = ""
     @State private var interventionDraft = ""
     @State private var gopSearch = ""
+
+    private var canFinish: Bool {
+        guard let appointment = store.selectedAppointment else { return false }
+        return store.appointmentDisplayStatus(appointment) == .documentationOpen
+    }
+
+    private var displayStatus: AppointmentStatus? {
+        guard let appointment = store.selectedAppointment else { return nil }
+        return store.appointmentDisplayStatus(appointment)
+    }
 
     var body: some View {
         ScrollView {
@@ -839,7 +812,7 @@ private struct SessionEditor: View {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 10) {
-                            Text("Sitzung #\(session.number)")
+                            Text("Dokumentieren #\(session.number)")
                                 .font(.system(size: 16, weight: .bold))
                             MenuField(title: nil, selection: Binding(
                                 get: { store.selectedSession?.type ?? session.type },
@@ -856,6 +829,17 @@ private struct SessionEditor: View {
                             .foregroundStyle(Color(hex: "#aaaaaa"))
                     }
                     Spacer()
+                    if canFinish {
+                        SmallActionButton("Abschließen", primary: true) {
+                            if let onFinish {
+                                onFinish()
+                            } else {
+                                store.finishSelectedSession()
+                            }
+                        }
+                    } else if let displayStatus, displayStatus != .scheduled {
+                        StatusBadge(status: displayStatus)
+                    }
                     AutoSaveIndicator()
                 }
                 .padding(.bottom, 14)
@@ -918,7 +902,7 @@ private struct SessionEditor: View {
                     FormSectionHeader("GOP-Ziffern")
                     VStack(spacing: 7) {
                         ForEach(store.selectedSession?.gopEntries ?? []) { entry in
-                            GOPEntryCard(entry: entry) { factor in
+                            GOPEntryCard(entry: entry, isReadOnly: !entry.billingStatus.isEditable) { factor in
                                 store.setGOPFactor(entryID: entry.id, factor: factor)
                             } onRemove: {
                                 store.removeGOPEntry(entry.id)
@@ -961,6 +945,7 @@ private struct SessionEditor: View {
                                 .compactMap { Double(String($0).replacingOccurrences(of: ",", with: ".")) }
                         )
                     }
+                    .disabled((store.selectedSession?.gopEntries ?? []).contains { !$0.billingStatus.isEditable })
                     HStack {
                         Text("Gesamt")
                             .font(.system(size: 11, weight: .semibold))
@@ -1037,27 +1022,13 @@ private struct FrageboegenTab: View {
 
 private struct TermineTab: View {
     @Environment(AppStore.self) private var store
+    @State private var showsAllFuture = false
+    @State private var showsAllOther = false
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                // Action buttons row
                 HStack(spacing: 8) {
-                    Button {
-                        // No-op: the right panel already shows the new-appointment form
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "plus")
-                            Text("Neuer Termin")
-                        }
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .frame(height: 30)
-                        .background(RoundedRectangle(cornerRadius: 7).fill(PraxisPalette.primary))
-                    }
-                    .buttonStyle(.plain)
-
                     Button {
                         store.enterPlanningMode(patientID: store.selectedPatientID)
                     } label: {
@@ -1078,6 +1049,7 @@ private struct TermineTab: View {
                     .buttonStyle(.plain)
 
                     Spacer(minLength: 0)
+                    QuotaPill(patient: store.selectedPatient)
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 12)
@@ -1087,9 +1059,33 @@ private struct TermineTab: View {
                 }
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        AppointmentSection(title: "Geplante Termine", showsButton: false, appointments: store.selectedPatient.appointments.filter { !$0.isPast })
-                        AppointmentSection(title: "Vergangene Termine", showsButton: false, appointments: store.selectedPatient.appointments.filter(\.isPast))
+                    VStack(alignment: .leading, spacing: 16) {
+                        let grouped = appointmentGroups
+                        AppointmentTimelineSection(
+                            title: "Geplante Termine",
+                            appointments: showsAllFuture ? grouped.future : Array(grouped.future.prefix(1)),
+                            hiddenCount: max(0, grouped.future.count - 1),
+                            isExpanded: showsAllFuture,
+                            patient: store.selectedPatient
+                        ) {
+                            showsAllFuture.toggle()
+                        }
+                        AppointmentTimelineSection(
+                            title: "Aktion erforderlich",
+                            appointments: grouped.actionable,
+                            hiddenCount: 0,
+                            isExpanded: true,
+                            patient: store.selectedPatient
+                        ) {}
+                        AppointmentTimelineSection(
+                            title: "Weitere Termine",
+                            appointments: showsAllOther ? grouped.other : [],
+                            hiddenCount: grouped.other.count,
+                            isExpanded: showsAllOther,
+                            patient: store.selectedPatient
+                        ) {
+                            showsAllOther.toggle()
+                        }
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 16)
@@ -1098,29 +1094,211 @@ private struct TermineTab: View {
                     Rectangle().fill(Color(hex: "#f0f0f5")).frame(width: 1)
                 }
             }
+            .frame(width: 340)
 
-            VStack(alignment: .leading, spacing: 14) {
-                SectionLabel("Neuer Termin")
-                InputField(title: "Datum", text: Binding(get: { store.draftAppointment.date }, set: { store.draftAppointment.date = $0 }), compact: true)
-                HStack(spacing: 6) {
-                    InputField(title: "Zeit", text: Binding(get: { store.draftAppointment.time }, set: { store.draftAppointment.time = $0 }), compact: true)
-                    InputField(title: "Dauer", text: Binding(get: { store.draftAppointment.duration }, set: { store.draftAppointment.duration = $0 }), compact: true)
+            if let session = store.selectedSession {
+                SessionEditor(session: session) {
+                    withAnimation(.spring(response: 0.46, dampingFraction: 0.82)) {
+                        showsAllOther = true
+                        store.finishSelectedSession()
+                    }
                 }
-                MenuField(title: "Typ", selection: Binding(get: { store.draftAppointment.type }, set: { store.draftAppointment.type = $0 }), options: MockData.appointmentTypes)
-                MenuField(title: "Wiederholung", selection: Binding(get: { store.draftAppointment.recurrence }, set: { store.draftAppointment.recurrence = $0 }), options: MockData.recurrenceOptions)
-                MockTextEditor(text: Binding(get: { store.draftAppointment.note }, set: { store.draftAppointment.note = $0 }), minHeight: 90, placeholder: "Optionale Notiz")
-                PrimaryButton("Termin anlegen") {
-                    store.createAppointment()
+            } else {
+                PlaceholderScreen(title: "Kein Termin", subtitle: "Wähle einen Termin aus der Liste.")
+            }
+        }
+        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: appointmentGroups.actionable.map(\.id))
+        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: appointmentGroups.other.map(\.id))
+    }
+
+    private var appointmentGroups: (future: [AppointmentRecord], actionable: [AppointmentRecord], other: [AppointmentRecord]) {
+        let appointments = store.selectedPatientAppointments
+        let future = appointments
+            .filter { appointment in
+                store.appointmentDisplayStatus(appointment) == .scheduled && !store.isOnCurrentDayOrEarlier(appointment)
+            }
+            .sorted { lhs, rhs in
+                if lhs.isoDate == rhs.isoDate { return lhs.time < rhs.time }
+                return lhs.isoDate < rhs.isoDate
+            }
+        let actionable = appointments
+            .filter { appointment in
+                let status = store.appointmentDisplayStatus(appointment)
+                return status == .documentationOpen
+            }
+            .sorted { lhs, rhs in
+                if lhs.isoDate == rhs.isoDate { return lhs.time < rhs.time }
+                return lhs.isoDate < rhs.isoDate
+            }
+        let actionableIDs = Set(actionable.map(\.id))
+        let futureIDs = Set(future.map(\.id))
+        let other = appointments
+            .filter { !actionableIDs.contains($0.id) && !futureIDs.contains($0.id) }
+            .sorted { lhs, rhs in
+                if lhs.isoDate == rhs.isoDate { return lhs.time > rhs.time }
+                return lhs.isoDate > rhs.isoDate
+            }
+        return (future, actionable, other)
+    }
+}
+
+private struct AppointmentTimelineSection: View {
+    let title: String
+    let appointments: [AppointmentRecord]
+    let hiddenCount: Int
+    let isExpanded: Bool
+    let patient: Patient
+    let onToggle: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel(title)
+                Spacer()
+                if hiddenCount > 0 {
+                    Button(isExpanded ? "Einklappen" : "\(hiddenCount) weitere") {
+                        onToggle()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(PraxisPalette.primary)
                 }
-                Text("Hinweis: Wiederkehrende Termine werden im Mock nicht persistiert, reagieren aber direkt in der Liste.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color(hex: "#aaaaaa"))
+            }
+            VStack(spacing: 7) {
+                ForEach(appointments) { appointment in
+                    AppointmentLifecycleCard(
+                        patient: patient,
+                        appointment: appointment,
+                        session: patient.sessions.first { $0.id == appointment.sessionID || $0.appointmentID == appointment.id },
+                        compact: false
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .bottom).combined(with: .opacity)
+                    ))
+                }
+                if appointments.isEmpty {
+                    Text("Keine Termine")
+                        .font(.system(size: 12))
+                        .foregroundStyle(PraxisPalette.subtleText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                }
+            }
+        }
+    }
+}
+
+private struct QuotaPill: View {
+    let patient: Patient
+
+    var body: some View {
+        let scheduled = patient.appointments.filter { $0.status != .cancelled }.count
+        let finished = patient.appointments.filter { $0.status == .finished }.count
+        let remaining = max(0, patient.sessionLimit - scheduled)
+        HStack(spacing: 5) {
+            Text("Kontingent")
+            Text("\(finished) fertig · \(scheduled) geplant · \(remaining) frei")
+                .fontWeight(.semibold)
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(Color(hex: "#555555"))
+        .padding(.horizontal, 9)
+        .frame(height: 26)
+        .background(RoundedRectangle(cornerRadius: 7).fill(PraxisPalette.field).stroke(PraxisPalette.border, lineWidth: 1))
+    }
+}
+
+private struct QuotaMetric: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(PraxisPalette.label)
+                .textCase(.uppercase)
+            Text(value)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(PraxisPalette.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .frame(height: 34)
+                .background(RoundedRectangle(cornerRadius: 8).fill(PraxisPalette.field).stroke(PraxisPalette.border, lineWidth: 1))
+        }
+    }
+}
+
+private func currentISODate() -> String {
+    let fmt = DateFormatter()
+    fmt.locale = Locale(identifier: "en_US_POSIX")
+    fmt.dateFormat = "yyyy-MM-dd"
+    return fmt.string(from: Date())
+}
+
+private struct BillingView: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    SectionLabel("Billing", compact: false)
+                    Text("\(store.unbilledGOPItems.count) offene GOP-Positionen")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(PraxisPalette.text)
+                }
                 Spacer()
             }
-            .padding(16)
-            .frame(width: 240)
-            .background(Color(hex: "#fafafa"))
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(PraxisPalette.border).frame(height: 1)
+            }
+
+            ScrollView {
+                VStack(spacing: 7) {
+                    ForEach(store.unbilledGOPItems, id: \.entry.id) { item in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.patient.fullName)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(PraxisPalette.text)
+                                Text("\(item.appointment.dateLabel) · \(item.appointment.time) · Sitzung #\(item.session.number)")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(PraxisPalette.subtleText)
+                            }
+                            Spacer(minLength: 0)
+                            Text(item.entry.code)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(Color(hex: "#0055c4"))
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: "#dce8ff")))
+                            Text(currency(item.entry.price))
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(PraxisPalette.text)
+                                .frame(width: 78, alignment: .trailing)
+                            SmallActionButton("Abgerechnet") {
+                                store.selectAppointment(item.appointment.id, patientID: item.patient.id, tab: .termine)
+                                store.markGOPEntryBilled(item.entry.id)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(PraxisPalette.field).stroke(PraxisPalette.border, lineWidth: 1))
+                    }
+                    if store.unbilledGOPItems.isEmpty {
+                        PlaceholderScreen(title: "Keine offenen Positionen", subtitle: "Ungebuchte GOP-Ziffern aus dokumentierten Terminen erscheinen hier.")
+                            .frame(minHeight: 360)
+                    }
+                }
+                .padding(18)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.white)
     }
 }
 
@@ -1369,6 +1547,164 @@ private struct SectionLabel: View {
     }
 }
 
+private struct AppointmentLifecycleCard: View {
+    @Environment(AppStore.self) private var store
+    let patient: Patient
+    let appointment: AppointmentRecord
+    let session: SessionRecord?
+    var compact: Bool = false
+
+    private var displayStatus: AppointmentStatus {
+        store.appointmentDisplayStatus(appointment)
+    }
+
+    private var isSelected: Bool {
+        store.selectedAppointmentID == appointment.id
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 9) {
+                VStack(spacing: 2) {
+                    Text(appointment.time)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(isSelected ? .white : PraxisPalette.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text("\(appointment.durationMinutes)m")
+                        .font(.system(size: 10))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.72) : PraxisPalette.subtleText)
+                }
+                .frame(width: 42)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(patient.fullName)
+                        .font(.system(size: compact ? 12 : 13, weight: .bold))
+                        .foregroundStyle(isSelected ? .white : PraxisPalette.text)
+                        .lineLimit(1)
+                    Text(appointmentSubtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.76) : PraxisPalette.subtleText)
+                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        StatusBadge(status: displayStatus)
+                        if appointment.seriesID != nil {
+                            MiniBadge("Serie")
+                        }
+                        if session?.note.isEmpty == false {
+                            MiniBadge("Notiz")
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+
+            if !compact && (displayStatus == .scheduled || displayStatus == .documentationOpen) {
+                AppointmentActionRow(patient: patient, appointment: appointment, status: displayStatus)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, compact ? 9 : 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? statusTextColor(displayStatus) : statusBackground(displayStatus))
+                .stroke(isSelected ? statusTextColor(displayStatus) : statusBorder(displayStatus), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .onTapGesture {
+            store.selectAppointment(appointment.id, patientID: patient.id, tab: .termine)
+            store.sidebarSelection = .patienten
+        }
+    }
+
+    private var appointmentSubtitle: String {
+        let number = appointment.sessionNumber.map { " · #\($0)" } ?? ""
+        return "\(appointment.dateLabel) · \(appointment.type)\(number)"
+    }
+}
+
+private struct AppointmentActionRow: View {
+    @Environment(AppStore.self) private var store
+    let patient: Patient
+    let appointment: AppointmentRecord
+    let status: AppointmentStatus
+    @State private var confirmsCancellation = false
+
+    private var showsOpenStateActions: Bool {
+        status == .scheduled || status == .documentationOpen
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if showsOpenStateActions {
+                SmallActionButton("No-Show", danger: true) {
+                    store.markNoShow(appointmentID: appointment.id, patientID: patient.id)
+                }
+                SmallActionButton("Absagen") {
+                    confirmsCancellation = true
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .confirmationDialog(
+            "Termin absagen?",
+            isPresented: $confirmsCancellation,
+            titleVisibility: .visible
+        ) {
+            Button("Absagen", role: .destructive) {
+                store.cancelAppointment(appointmentID: appointment.id, patientID: patient.id)
+            }
+            Button("Nicht absagen", role: .cancel) {}
+        } message: {
+            Text("Der Termin wird aus Dokumentations- und Abrechnungslisten entfernt.")
+        }
+    }
+}
+
+private struct SmallActionButton: View {
+    let title: String
+    var primary = false
+    var danger = false
+    let action: () -> Void
+
+    init(_ title: String, primary: Bool = false, danger: Bool = false, action: @escaping () -> Void) {
+        self.title = title
+        self.primary = primary
+        self.danger = danger
+        self.action = action
+    }
+
+    var body: some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(primary ? .white : (danger ? PraxisPalette.danger : PraxisPalette.primary))
+            .padding(.horizontal, 8)
+            .frame(height: 24)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(primary ? PraxisPalette.primary : PraxisPalette.field)
+                    .stroke(primary ? PraxisPalette.primary : PraxisPalette.border, lineWidth: 1)
+            )
+    }
+}
+
+private struct MiniBadge: View {
+    let title: String
+    init(_ title: String) { self.title = title }
+    var body: some View {
+        Text(title)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(PraxisPalette.subtleText)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.65)))
+    }
+}
+
 private struct AppointmentAgendaCard: View {
     let patientName: String
     let subtitle: String
@@ -1407,14 +1743,14 @@ private struct AppointmentAgendaCard: View {
                 }
                 Spacer(minLength: 0)
                 Circle()
-                    .fill(status == .erfolgt ? Color(hex: "#34c759") : (isSelected ? Color.white.opacity(0.6) : PraxisPalette.primary))
+                    .fill(status == .finished ? Color(hex: "#34c759") : (isSelected ? Color.white.opacity(0.6) : PraxisPalette.primary))
                     .frame(width: 7, height: 7)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .background(RoundedRectangle(cornerRadius: 9).fill(isSelected ? PraxisPalette.primary : .clear))
-            .opacity(status == .erfolgt ? 0.45 : 1)
+            .opacity(status == .finished ? 0.45 : 1)
         }
         .buttonStyle(.plain)
         .interactiveHover(cornerRadius: 9, isEnabled: !isSelected)
@@ -2256,6 +2592,7 @@ private struct ChipEditor: View {
 
 private struct GOPEntryCard: View {
     let entry: GOPEntry
+    var isReadOnly = false
     let onFactorChange: (Double) -> Void
     let onRemove: () -> Void
     @State private var hoveredFactor: Double? = nil
@@ -2273,10 +2610,14 @@ private struct GOPEntryCard: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Color(hex: "#333333"))
                 Spacer(minLength: 0)
-                Button("×", action: onRemove)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color(hex: "#cccccc"))
-                    .deleteHover()
+                if isReadOnly {
+                    MiniBadge(entry.billingStatus.rawValue)
+                } else {
+                    Button("×", action: onRemove)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color(hex: "#cccccc"))
+                        .deleteHover()
+                }
             }
             HStack {
                 HStack(spacing: 3) {
@@ -2286,9 +2627,10 @@ private struct GOPEntryCard: View {
                         Button(String(format: "%.1f", factor)) {
                             onFactorChange(factor)
                         }
+                        .disabled(isReadOnly)
                         .buttonStyle(.plain)
                         .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
-                        .foregroundStyle(isSelected ? .white : (isHovered ? PraxisPalette.primary : Color(hex: "#555555")))
+                        .foregroundStyle(isReadOnly ? Color(hex: "#999999") : (isSelected ? .white : (isHovered ? PraxisPalette.primary : Color(hex: "#555555"))))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
                         .background(RoundedRectangle(cornerRadius: 5).fill(isSelected ? PraxisPalette.primary : (isHovered ? Color(hex: "#eaf0ff") : .white)))
@@ -2406,6 +2748,7 @@ private struct ScoreBar: View {
 }
 
 private struct AppointmentSection: View {
+    @Environment(AppStore.self) private var store
     let title: String
     let showsButton: Bool
     let appointments: [AppointmentRecord]
@@ -2421,7 +2764,10 @@ private struct AppointmentSection: View {
             }
             VStack(spacing: 5) {
                 ForEach(appointments) { appointment in
-                    AppointmentRow(appointment: appointment)
+                    AppointmentRow(
+                        appointment: appointment,
+                        status: store.appointmentDisplayStatus(appointment)
+                    )
                 }
             }
         }
@@ -2430,16 +2776,17 @@ private struct AppointmentSection: View {
 
 private struct AppointmentRow: View {
     let appointment: AppointmentRecord
+    let status: AppointmentStatus
 
     var body: some View {
         HStack(spacing: 10) {
             VStack(spacing: 0) {
                 Text(appointment.dayNumber)
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(appointment.status == .heute ? Color(hex: "#1a7a3a") : PraxisPalette.text)
+                    .foregroundStyle(statusTextColor(status))
                 Text(appointment.month)
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(appointment.status == .heute ? PraxisPalette.success : Color(hex: "#aaaaaa"))
+                    .foregroundStyle(statusTextColor(status).opacity(0.8))
                     .textCase(.uppercase)
             }
             .frame(width: 38)
@@ -2457,19 +2804,19 @@ private struct AppointmentRow: View {
             Text(appointment.time)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Color(hex: "#555555"))
-            StatusBadge(status: appointment.status)
+            StatusBadge(status: status)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .background(
             RoundedRectangle(cornerRadius: 9)
-                .fill(appointment.status == .heute ? Color(hex: "#f0fff4") : PraxisPalette.field)
-                .stroke(appointment.status == .heute ? Color(hex: "#b6e8c4") : PraxisPalette.border, lineWidth: 1)
+                .fill(statusBackground(status))
+                .stroke(statusBorder(status), lineWidth: 1)
         )
         .overlay(alignment: .leading) {
-            if appointment.status == .heute || appointment.status == .geplant {
+            if status == .scheduled || status == .documentationOpen {
                 Rectangle()
-                    .fill(appointment.status == .heute ? PraxisPalette.success : PraxisPalette.primary)
+                    .fill(statusTextColor(status))
                     .frame(width: 3)
             }
         }
@@ -2483,30 +2830,40 @@ private struct StatusBadge: View {
     var body: some View {
         Text(status.rawValue)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(foreground)
+            .foregroundStyle(statusTextColor(status))
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .background(RoundedRectangle(cornerRadius: 4).fill(background))
+            .background(RoundedRectangle(cornerRadius: 4).fill(statusBackground(status)))
     }
+}
 
-    private var background: Color {
-        switch status {
-        case .geplant: return Color(hex: "#e8f0fe")
-        case .heute: return Color(hex: "#d4f5d4")
-        case .erfolgt: return Color(hex: "#f0f0f5")
-        case .abgesagt: return Color(hex: "#fee2e2")
-        case .entfallen: return Color(hex: "#fde8d0")
-        }
+private func statusBackground(_ status: AppointmentStatus) -> Color {
+    switch status {
+    case .scheduled: return Color(hex: "#e8f0fe")
+    case .documentationOpen: return Color(hex: "#eef2ff")
+    case .finished: return Color(hex: "#e7f8ec")
+    case .noShow: return Color(hex: "#fee2e2")
+    case .cancelled: return Color(hex: "#f0f0f5")
     }
+}
 
-    private var foreground: Color {
-        switch status {
-        case .geplant: return Color(hex: "#0055c4")
-        case .heute: return Color(hex: "#1a6b1a")
-        case .erfolgt: return Color(hex: "#888888")
-        case .abgesagt: return Color(hex: "#b91c1c")
-        case .entfallen: return Color(hex: "#a04000")
-        }
+private func statusBorder(_ status: AppointmentStatus) -> Color {
+    switch status {
+    case .scheduled: return Color(hex: "#c7d8fb")
+    case .documentationOpen: return Color(hex: "#c7d2fe")
+    case .finished: return Color(hex: "#bde8c8")
+    case .noShow: return Color(hex: "#f0a0a0")
+    case .cancelled: return PraxisPalette.border
+    }
+}
+
+private func statusTextColor(_ status: AppointmentStatus) -> Color {
+    switch status {
+    case .scheduled: return Color(hex: "#0055c4")
+    case .documentationOpen: return Color(hex: "#3730a3")
+    case .finished: return Color(hex: "#1a7a3a")
+    case .noShow: return Color(hex: "#b91c1c")
+    case .cancelled: return Color(hex: "#777777")
     }
 }
 

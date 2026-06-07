@@ -389,7 +389,7 @@ final class AuditLogReconstructionTests: XCTestCase {
             dateLabel: "Mo, 10. Jun 2024", dayNumber: "10", month: "Jun",
             time: "09:00", durationMinutes: 50,
             title: "Sitzung", type: "Einzeltherapie",
-            sessionNumber: 1, status: .geplant, isPast: false)
+            sessionNumber: 1, status: .scheduled, isPast: false)
         try PatientRepository.insertAppointment(appt, patientID: pid)
 
         // ── questionnaire result with answers ─────────────────────────────

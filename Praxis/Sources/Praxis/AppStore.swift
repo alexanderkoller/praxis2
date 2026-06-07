@@ -78,10 +78,11 @@ final class AppStore {
             try? PatientRepository.seedMockData(MockData.patients)
             patients = MockData.patients
         }
+        normalizeAppointmentSessions()
         let first = patients.first ?? MockData.patients.first!
         selectedPatientID = first.id
         selectedAppointmentID = first.appointments.first?.id
-        selectedSessionID = first.sessions.first?.id
+        selectedSessionID = first.appointments.first.flatMap { linkedSession(for: $0, in: first)?.id } ?? first.sessions.first?.id
         loadQuestionnaires()
         loadClinicalCatalogs()
     }
@@ -114,6 +115,18 @@ final class AppStore {
         selectedPatient.sessions.sorted { $0.number > $1.number }
     }
 
+    var selectedPatientAppointments: [AppointmentRecord] {
+        selectedPatient.appointments.sorted { lhs, rhs in
+            if lhs.isoDate == rhs.isoDate { return lhs.time < rhs.time }
+            return lhs.isoDate < rhs.isoDate
+        }
+    }
+
+    var selectedAppointment: AppointmentRecord? {
+        guard let selectedAppointmentID else { return selectedPatientAppointments.first }
+        return selectedPatient.appointments.first { $0.id == selectedAppointmentID }
+    }
+
     var selectedSession: SessionRecord? {
         get {
             guard let selectedSessionID else { return selectedPatient.sessions.first }
@@ -127,19 +140,25 @@ final class AppStore {
     }
 
     var todayAgenda: [(patient: Patient, appointment: AppointmentRecord)] {
-        let cal = Calendar.current
-        let now = Date()
-        let day = String(cal.component(.day, from: now))
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "de_DE")
-        fmt.dateFormat = "MMM"
-        let month = fmt.string(from: now)
+        let today = isoString(from: Date())
         return patients.flatMap { patient in
             patient.appointments.compactMap { appt in
-                appt.dayNumber == day && appt.month == month ? (patient, appt) : nil
+                appt.isoDate == today ? (patient, appt) : nil
             }
         }
         .sorted { $0.appointment.time < $1.appointment.time }
+    }
+
+    var unbilledGOPItems: [(patient: Patient, appointment: AppointmentRecord, session: SessionRecord, entry: GOPEntry)] {
+        patients.filter { $0.status == .aktiv }.flatMap { patient in
+            patient.appointments.flatMap { appointment -> [(patient: Patient, appointment: AppointmentRecord, session: SessionRecord, entry: GOPEntry)] in
+                guard appointment.status == .finished,
+                      let session = linkedSession(for: appointment, in: patient) else { return [] }
+                return session.gopEntries
+                    .filter { $0.billingStatus == .unbilled }
+                    .map { (patient, appointment, session, $0) }
+            }
+        }
     }
 
     var groupedQuestionnaireResults: [(name: String, description: String, results: [QuestionnaireResultRecord])] {
@@ -212,7 +231,7 @@ final class AppStore {
     var calendarWeekAppointmentsCount: Int { calendarWeekAppointments.count }
 
     var calendarWeekCancelledCount: Int {
-        calendarWeekAppointments.filter { $0.appointment.status == .abgesagt }.count
+        calendarWeekAppointments.filter { $0.appointment.status == .cancelled }.count
     }
 
     // MARK: - Navigation
@@ -220,18 +239,30 @@ final class AppStore {
     func selectPatient(_ id: UUID) {
         selectedPatientID = id
         selectedAppointmentID = selectedPatient.appointments.first?.id
-        selectedSessionID = selectedPatient.sessions.first?.id
+        selectedSessionID = selectedAppointment.flatMap { linkedSession(for: $0, in: selectedPatient)?.id } ?? selectedPatient.sessions.first?.id
         patientTab = .uebersicht
     }
 
     func selectPatientByAppointment(_ appointmentID: UUID) {
-        guard let match = todayAgenda.first(where: { $0.appointment.id == appointmentID }) else { return }
+        guard let match = patients.flatMap({ patient in
+            patient.appointments.map { (patient: patient, appointment: $0) }
+        }).first(where: { $0.appointment.id == appointmentID }) else { return }
         selectPatient(match.patient.id)
         selectedAppointmentID = appointmentID
+        selectedSessionID = linkedSession(for: match.appointment, in: match.patient)?.id
         sidebarSelection = .heute
     }
 
     func selectSession(_ sessionID: UUID) { selectedSessionID = sessionID }
+
+    func selectAppointment(_ appointmentID: UUID, patientID: UUID? = nil, tab: PatientTab? = .termine) {
+        if let patientID { selectedPatientID = patientID }
+        selectedAppointmentID = appointmentID
+        if let appointment = selectedPatient.appointments.first(where: { $0.id == appointmentID }) {
+            selectedSessionID = linkedSession(for: appointment, in: selectedPatient)?.id
+        }
+        if let tab { patientTab = tab }
+    }
 
     // MARK: - Mutation primitives
 
@@ -349,25 +380,33 @@ final class AppStore {
     // MARK: - Sessions
 
     func addSession() {
-        let nextNumber = (selectedPatient.sessions.map(\.number).max() ?? 0) + 1
-        let session = SessionRecord(
-            number: nextNumber,
-            shortType: "VT",
-            type: "Verhaltenstherapie",
-            date: currentDateLabel(),
-            durationMinutes: 50,
-            topics: [],
-            interventions: [],
-            homework: "",
-            note: "",
-            gopEntries: [GOPEntry(code: "870", description: "Psychotherapeutische Behandlung, Einzelbehandlung, 50 Minuten", factor: 2.3, basePrice: 40.22)]
-        )
-        updateSelectedPatient {
-            $0.sessions.insert(session, at: 0)
-            $0.sessionCount = max($0.sessionCount, nextNumber)
-        }
-        selectedSessionID = session.id
-        try? PatientRepository.insertSession(session, patientID: selectedPatientID)
+        guard let appointment = selectedAppointment else { return }
+        openDocumentation(for: appointment.id, patientID: selectedPatientID)
+    }
+
+    func openDocumentation(for appointmentID: UUID, patientID: UUID) {
+        selectAppointment(appointmentID, patientID: patientID, tab: .termine)
+        guard let pIdx = patients.firstIndex(where: { $0.id == patientID }),
+              let aIdx = patients[pIdx].appointments.firstIndex(where: { $0.id == appointmentID })
+        else { return }
+        let appointment = patients[pIdx].appointments[aIdx]
+        selectedSessionID = appointment.sessionID
+    }
+
+    func finishSelectedSession() {
+        guard let sessionID = selectedSessionID,
+              let pIdx = patients.firstIndex(where: { $0.id == selectedPatientID }),
+              let sIdx = patients[pIdx].sessions.firstIndex(where: { $0.id == sessionID }),
+              let aIdx = patients[pIdx].appointments.firstIndex(where: { $0.sessionID == sessionID }),
+              appointmentDisplayStatus(patients[pIdx].appointments[aIdx]) == .documentationOpen
+        else { return }
+        let timestamp = isoDateTimeString()
+        patients[pIdx].sessions[sIdx].isFinished = true
+        patients[pIdx].sessions[sIdx].finishedAt = timestamp
+        let session = patients[pIdx].sessions[sIdx]
+        try? PatientRepository.updateSession(session)
+        patients[pIdx].appointments[aIdx].status = .finished
+        try? PatientRepository.updateAppointmentStatus(id: patients[pIdx].appointments[aIdx].id, status: .finished)
     }
 
     // MARK: - Topics & interventions
@@ -416,14 +455,25 @@ final class AppStore {
     func setGOPFactor(entryID: UUID, factor: Double) {
         updateSelectedSession { session in
             guard let index = session.gopEntries.firstIndex(where: { $0.id == entryID }) else { return }
+            guard session.gopEntries[index].billingStatus.isEditable else { return }
             session.gopEntries[index].factor = factor
         }
         try? PatientRepository.updateGOPFactor(id: entryID, factor: factor)
     }
 
     func removeGOPEntry(_ entryID: UUID) {
-        updateSelectedSession { $0.gopEntries.removeAll { $0.id == entryID } }
+        updateSelectedSession { session in
+            session.gopEntries.removeAll { $0.id == entryID && $0.billingStatus.isEditable }
+        }
         try? PatientRepository.deleteGOPEntry(id: entryID)
+    }
+
+    func markGOPEntryBilled(_ entryID: UUID) {
+        updateSelectedSession { session in
+            guard let index = session.gopEntries.firstIndex(where: { $0.id == entryID }) else { return }
+            session.gopEntries[index].billingStatus = .billed
+        }
+        try? PatientRepository.updateGOPBillingStatus(id: entryID, status: .billed)
     }
 
     // MARK: - Patient status
@@ -438,11 +488,6 @@ final class AppStore {
 
     func createAppointment() {
         let nextNumber = (selectedPatient.appointments.compactMap(\.sessionNumber).max() ?? selectedPatient.sessionCount) + 1
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "de_DE")
-        fmt.dateFormat = "MMM"
-        let month = fmt.string(from: Date())
-        let day = String(Calendar.current.component(.day, from: Date()))
         let draftFmt = DateFormatter()
         draftFmt.locale = Locale(identifier: "de_DE")
         draftFmt.dateFormat = "dd.MM.yyyy"
@@ -451,9 +496,31 @@ final class AppStore {
         isoFmt.dateFormat = "yyyy-MM-dd"
         let resolvedDate = draftFmt.date(from: draftAppointment.date) ?? Date()
         let isoDate = isoFmt.string(from: resolvedDate)
-        let appointment = AppointmentRecord(
+        let labelFmt = DateFormatter()
+        labelFmt.locale = Locale(identifier: "de_DE")
+        labelFmt.dateFormat = "EEEE, d. MMMM"
+        let dateLabel = labelFmt.string(from: resolvedDate)
+        let monthFmt = DateFormatter()
+        monthFmt.locale = Locale(identifier: "de_DE")
+        monthFmt.dateFormat = "MMM"
+        let month = monthFmt.string(from: resolvedDate)
+        let day = String(Calendar(identifier: .iso8601).component(.day, from: resolvedDate))
+        let appointmentID = UUID()
+        let sessionID = UUID()
+        let session = makeSessionDraft(
+            id: sessionID,
+            appointmentID: appointmentID,
+            number: nextNumber,
+            type: draftAppointment.type,
             isoDate: isoDate,
-            dateLabel: draftAppointment.date,
+            duration: Int(draftAppointment.duration) ?? 50,
+            includesDefaultGOP: false
+        )
+        let appointment = AppointmentRecord(
+            id: appointmentID,
+            isoDate: isoDate,
+            sessionID: sessionID,
+            dateLabel: dateLabel,
             dayNumber: day,
             month: month,
             time: draftAppointment.time,
@@ -461,14 +528,18 @@ final class AppStore {
             title: "\(draftAppointment.type) #\(nextNumber)",
             type: draftAppointment.type,
             sessionNumber: nextNumber,
-            status: .geplant,
+            status: .scheduled,
             note: draftAppointment.note,
             isPast: false
         )
         updateSelectedPatient {
             $0.appointments.insert(appointment, at: 0)
-            $0.nextAppointmentText = "\(draftAppointment.date) · \(draftAppointment.time)"
+            $0.sessions.insert(session, at: 0)
+            $0.nextAppointmentText = "\(dateLabel) · \(draftAppointment.time)"
         }
+        selectedAppointmentID = appointment.id
+        selectedSessionID = session.id
+        try? PatientRepository.insertSession(session, patientID: selectedPatientID)
         try? PatientRepository.insertAppointment(appointment, patientID: selectedPatientID)
     }
 
@@ -508,20 +579,35 @@ final class AppStore {
 
         let cal = Calendar(identifier: .iso8601)
         let intervalDays = recurrenceDayInterval(for: recurrence)
+        let seriesID = intervalDays == nil ? nil : UUID()
         let finalNumber = intervalDays == nil
             ? nextNumber
             : max(nextNumber, patients[pIdx].sessionLimit)
 
-        let appointments: [AppointmentRecord] = (nextNumber...finalNumber).compactMap { number in
+        let pairs: [(appointment: AppointmentRecord, session: SessionRecord)] = (nextNumber...finalNumber).compactMap { number in
             let offsetDays = intervalDays.map { (number - nextNumber) * $0 } ?? 0
             guard let date = cal.date(byAdding: .day, value: offsetDays, to: startDate) else { return nil }
             let appointmentISODate = dateFmt.string(from: date)
             let dateLabel = labelFmt.string(from: date)
             let month = monthFmt.string(from: date)
             let dayNumber = String(cal.component(.day, from: date))
-
-            return AppointmentRecord(
+            let appointmentID = UUID()
+            let sessionID = UUID()
+            let session = makeSessionDraft(
+                id: sessionID,
+                appointmentID: appointmentID,
+                number: number,
+                type: type,
                 isoDate: appointmentISODate,
+                duration: duration,
+                includesDefaultGOP: false
+            )
+
+            let appointment = AppointmentRecord(
+                id: appointmentID,
+                isoDate: appointmentISODate,
+                seriesID: seriesID,
+                sessionID: sessionID,
                 dateLabel: dateLabel,
                 dayNumber: dayNumber,
                 month: month,
@@ -530,18 +616,23 @@ final class AppStore {
                 title: "\(type) #\(number)",
                 type: type,
                 sessionNumber: number,
-                status: .geplant,
+                status: .scheduled,
                 note: "",
                 isPast: false
             )
+            return (appointment, session)
         }
 
+        let appointments = pairs.map(\.appointment)
+        let sessions = pairs.map(\.session)
         patients[pIdx].appointments.insert(contentsOf: appointments, at: 0)
+        patients[pIdx].sessions.insert(contentsOf: sessions, at: 0)
         if let firstAppointment = appointments.first {
             patients[pIdx].nextAppointmentText = "\(firstAppointment.dateLabel) · \(time)"
         }
-        for appointment in appointments {
-            try? PatientRepository.insertAppointment(appointment, patientID: patientID)
+        for pair in pairs {
+            try? PatientRepository.insertSession(pair.session, patientID: patientID)
+            try? PatientRepository.insertAppointment(pair.appointment, patientID: patientID)
         }
         calendarDraft = CalendarDraft()
     }
@@ -555,11 +646,31 @@ final class AppStore {
     }
 
     func markAppointmentAbgesagt(appointmentID: UUID, patientID: UUID) {
+        cancelAppointment(appointmentID: appointmentID, patientID: patientID)
+    }
+
+    func cancelAppointment(appointmentID: UUID, patientID: UUID) {
         guard let pIdx = patients.firstIndex(where: { $0.id == patientID }),
               let aIdx = patients[pIdx].appointments.firstIndex(where: { $0.id == appointmentID })
         else { return }
-        patients[pIdx].appointments[aIdx].status = .abgesagt
-        try? PatientRepository.updateAppointmentStatus(id: appointmentID, status: .abgesagt)
+        patients[pIdx].appointments[aIdx].status = .cancelled
+        try? PatientRepository.updateAppointmentStatus(id: appointmentID, status: .cancelled)
+    }
+
+    func markNoShow(appointmentID: UUID, patientID: UUID) {
+        guard let pIdx = patients.firstIndex(where: { $0.id == patientID }),
+              let aIdx = patients[pIdx].appointments.firstIndex(where: { $0.id == appointmentID }),
+              let sIdx = patients[pIdx].sessions.firstIndex(where: { $0.id == patients[pIdx].appointments[aIdx].sessionID })
+        else { return }
+        if patients[pIdx].sessions[sIdx].gopEntries.isEmpty {
+            patients[pIdx].sessions[sIdx].gopEntries = defaultGOPEntries(for: patients[pIdx].appointments[aIdx].type)
+            try? PatientRepository.updateSession(patients[pIdx].sessions[sIdx])
+            for entry in patients[pIdx].sessions[sIdx].gopEntries {
+                try? PatientRepository.insertGOPEntry(entry, sessionID: patients[pIdx].sessions[sIdx].id)
+            }
+        }
+        patients[pIdx].appointments[aIdx].status = .noShow
+        try? PatientRepository.updateAppointmentStatus(id: appointmentID, status: .noShow)
     }
 
     // MARK: - Documents
@@ -784,6 +895,102 @@ final class AppStore {
         return fmt.string(from: date)
     }
 
+    private func isoDateTimeString() -> String {
+        ISO8601DateFormatter().string(from: Date())
+    }
+
+    func linkedSession(for appointment: AppointmentRecord, in patient: Patient) -> SessionRecord? {
+        patient.sessions.first { $0.id == appointment.sessionID }
+            ?? patient.sessions.first { $0.appointmentID == appointment.id }
+            ?? patient.sessions.first { session in
+                appointment.sessionNumber == session.number || (appointment.isoDate == session.date && appointment.durationMinutes == session.durationMinutes)
+            }
+    }
+
+    func appointmentDisplayStatus(_ appointment: AppointmentRecord) -> AppointmentStatus {
+        if appointment.status == .scheduled && isOnCurrentDayOrEarlier(appointment) {
+            return .documentationOpen
+        }
+        return appointment.status
+    }
+
+    func isOnCurrentDayOrEarlier(_ appointment: AppointmentRecord, now: Date = Date()) -> Bool {
+        appointment.isoDate <= isoString(from: now)
+    }
+
+    private func defaultGOPEntries(for appointmentType: String) -> [GOPEntry] {
+        let code = appointmentType == "Probatorik" ? "801" : "870"
+        if let catalog = gopCatalog.first(where: { $0.code == code }) {
+            return [GOPEntry(
+                code: catalog.code,
+                description: catalog.description,
+                factor: catalog.maxFactorNoJustification,
+                basePrice: catalog.basePrice,
+                maxFactorNoJustification: catalog.maxFactorNoJustification,
+                maxFactor: catalog.maxFactor,
+                commonFactors: catalog.commonFactors
+            )]
+        }
+        return [GOPEntry(
+            code: code,
+            description: appointmentType == "Probatorik" ? "Probatorische Sitzung" : "Psychotherapeutische Behandlung, Einzelbehandlung, 50 Minuten",
+            factor: 2.3,
+            basePrice: appointmentType == "Probatorik" ? 34.12 : 40.22
+        )]
+    }
+
+    private func makeSessionDraft(
+        id: UUID,
+        appointmentID: UUID,
+        number: Int,
+        type: String,
+        isoDate: String,
+        duration: Int,
+        includesDefaultGOP: Bool
+    ) -> SessionRecord {
+        SessionRecord(
+            id: id,
+            appointmentID: appointmentID,
+            number: number,
+            shortType: type == "Probatorik" ? "Probatorik" : "VT",
+            type: type == "Therapiesitzung" ? "Verhaltenstherapie" : type,
+            date: isoDate,
+            durationMinutes: duration,
+            topics: [],
+            interventions: [],
+            homework: "",
+            note: "",
+            gopEntries: includesDefaultGOP ? defaultGOPEntries(for: type) : []
+        )
+    }
+
+    private func normalizeAppointmentSessions() {
+        for pIdx in patients.indices {
+            for aIdx in patients[pIdx].appointments.indices {
+                let appointment = patients[pIdx].appointments[aIdx]
+                if let sIdx = patients[pIdx].sessions.firstIndex(where: {
+                    $0.id == appointment.sessionID ||
+                    $0.appointmentID == appointment.id ||
+                    (appointment.sessionNumber == $0.number)
+                }) {
+                    patients[pIdx].sessions[sIdx].appointmentID = appointment.id
+                    patients[pIdx].appointments[aIdx].sessionID = patients[pIdx].sessions[sIdx].id
+                } else {
+                    let sessionID = appointment.sessionID
+                    let session = makeSessionDraft(
+                        id: sessionID,
+                        appointmentID: appointment.id,
+                        number: appointment.sessionNumber ?? ((patients[pIdx].sessions.map(\.number).max() ?? 0) + 1),
+                        type: appointment.type,
+                        isoDate: appointment.isoDate,
+                        duration: appointment.durationMinutes,
+                        includesDefaultGOP: false
+                    )
+                    patients[pIdx].sessions.insert(session, at: 0)
+                }
+            }
+        }
+    }
 
     private func questionnaireTier(for scoringTier: ScoringTier?, score: Int) -> QuestionnaireTier {
         if let scoringTier {

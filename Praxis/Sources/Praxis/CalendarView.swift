@@ -157,8 +157,13 @@ private struct PlanningModeBanner: View {
 // MARK: - AppointmentGridBlock
 
 struct AppointmentGridBlock: View {
+    @Environment(AppStore.self) private var store
     let patient: Patient
     let appointment: AppointmentRecord
+
+    private var displayStatus: AppointmentStatus {
+        store.appointmentDisplayStatus(appointment)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
@@ -184,7 +189,7 @@ struct AppointmentGridBlock: View {
         .foregroundStyle(blockStyle.text)
         .clipShape(RoundedRectangle(cornerRadius: 5))
         .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
-        .opacity(appointment.status == .abgesagt || appointment.status == .entfallen ? 0.75 : 1)
+        .opacity(displayStatus == .cancelled ? 0.65 : 1)
     }
 
     private var typeSubtitle: String {
@@ -198,11 +203,15 @@ struct AppointmentGridBlock: View {
     }
 
     private var blockStyle: (background: Color, border: Color, text: Color) {
-        switch appointment.status {
-        case .abgesagt:
+        switch displayStatus {
+        case .noShow:
             return (Color(hex: "#fee2e2"), Color(hex: "#e03030"), Color(hex: "#b91c1c"))
-        case .entfallen:
-            return (Color(hex: "#fff0e0"), Color(hex: "#e07000"), Color(hex: "#8a3f00"))
+        case .cancelled:
+            return (Color(hex: "#f0f0f5"), Color(hex: "#b8b8c0"), Color(hex: "#777777"))
+        case .documentationOpen:
+            return (Color(hex: "#eef2ff"), Color(hex: "#6366f1"), Color(hex: "#3730a3"))
+        case .finished:
+            return (Color(hex: "#e7f8ec"), Color(hex: "#34c759"), Color(hex: "#1a7a3a"))
         default:
             if appointment.type == "Krisenintervention" {
                 return (Color(hex: "#fef3c7"), Color(hex: "#d97706"), Color(hex: "#92400e"))
@@ -219,6 +228,15 @@ struct AppointmentDetailPopover: View {
     let patient: Patient
     let appointment: AppointmentRecord
     let onDismiss: () -> Void
+    @State private var confirmsCancellation = false
+
+    private var displayStatus: AppointmentStatus {
+        store.appointmentDisplayStatus(appointment)
+    }
+
+    private var showsOpenStateActions: Bool {
+        displayStatus == .scheduled || displayStatus == .documentationOpen
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -253,57 +271,64 @@ struct AppointmentDetailPopover: View {
             VStack(alignment: .leading, spacing: 6) {
                 PopoverDetailRow(icon: "calendar", text: formattedDateTime)
                 PopoverDetailRow(icon: "stethoscope", text: appointment.type, badge: appointment.sessionNumber.map { "#\($0)" })
-                PopoverDetailRow(icon: "circle.fill", text: nil, badge: appointment.status.rawValue)
+                PopoverDetailRow(icon: "circle.fill", text: nil, badge: displayStatus.rawValue)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
 
             Divider().padding(.horizontal, 14)
 
-            // Actions
-            HStack(spacing: 8) {
-                Button {
-                    onDismiss()
-                    store.selectPatient(patient.id)
-                    store.patientTab = .termine
-                    store.sidebarSelection = .patienten
-                } label: {
-                    Text("Öffnen →")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 32)
-                        .background(RoundedRectangle(cornerRadius: 7).fill(PraxisPalette.primary))
-                }
-                .buttonStyle(.plain)
+            if showsOpenStateActions {
+                HStack(spacing: 8) {
+                    Button {
+                        store.markNoShow(appointmentID: appointment.id, patientID: patient.id)
+                        onDismiss()
+                    } label: {
+                        Text("No-Show")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(PraxisPalette.danger)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 32)
+                            .background(RoundedRectangle(cornerRadius: 7).fill(Color(hex: "#fff5f5")).stroke(Color(hex: "#f0c0c0"), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
 
-                Button {
-                    store.markAppointmentAbgesagt(
-                        appointmentID: appointment.id,
-                        patientID: patient.id
-                    )
-                    onDismiss()
-                } label: {
-                    Text("Absagen")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(PraxisPalette.danger)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 32)
-                        .background(
-                            RoundedRectangle(cornerRadius: 7)
-                                .fill(PraxisPalette.field)
-                                .stroke(PraxisPalette.border, lineWidth: 1)
-                        )
+                    Button {
+                        confirmsCancellation = true
+                    } label: {
+                        Text("Absagen")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(PraxisPalette.danger)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 32)
+                            .background(
+                                RoundedRectangle(cornerRadius: 7)
+                                    .fill(PraxisPalette.field)
+                                    .stroke(PraxisPalette.border, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .disabled(appointment.status == .abgesagt || appointment.status == .entfallen)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
         }
         .frame(width: 260)
         .background(.white)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .confirmationDialog(
+            "Termin absagen?",
+            isPresented: $confirmsCancellation,
+            titleVisibility: .visible
+        ) {
+            Button("Absagen", role: .destructive) {
+                store.cancelAppointment(appointmentID: appointment.id, patientID: patient.id)
+                onDismiss()
+            }
+            Button("Nicht absagen", role: .cancel) {}
+        } message: {
+            Text("Der Termin wird aus Dokumentations- und Abrechnungslisten entfernt.")
+        }
     }
 
     private var formattedDateTime: String {

@@ -337,6 +337,7 @@ struct SessionRecord_DB: FetchableRecord, PersistableRecord {
 
     var id: String
     var patientID: String
+    var appointmentID: String
     var number: Int
     var shortType: String
     var type: String
@@ -346,30 +347,39 @@ struct SessionRecord_DB: FetchableRecord, PersistableRecord {
     var interventionsJSON: String
     var homework: String
     var note: String
+    var isFinished: Bool
+    var finishedAt: String?
 
     init(row: Row) {
         id = row["id"]; patientID = row["patientID"]
+        appointmentID = row["appointmentID"] ?? ""
         number = row["number"]; shortType = row["shortType"]; type = row["type"]
         date = row["date"]; durationMinutes = row["durationMinutes"]
         topicsJSON = row["topics"]; interventionsJSON = row["interventions"]
         homework = row["homework"]; note = row["note"]
+        isFinished = row["isFinished"] ?? false
+        finishedAt = row["finishedAt"]
     }
 
     func encode(to container: inout PersistenceContainer) {
         container["id"] = id; container["patientID"] = patientID
+        container["appointmentID"] = appointmentID
         container["number"] = number; container["shortType"] = shortType; container["type"] = type
         container["date"] = date; container["durationMinutes"] = durationMinutes
         container["topics"] = topicsJSON; container["interventions"] = interventionsJSON
         container["homework"] = homework; container["note"] = note
+        container["isFinished"] = isFinished; container["finishedAt"] = finishedAt
     }
 
     init(_ s: SessionRecord, patientID: UUID) {
         id = s.id.uuidString; self.patientID = patientID.uuidString
+        appointmentID = s.appointmentID.uuidString
         number = s.number; shortType = s.shortType; type = s.type
         date = s.date; durationMinutes = s.durationMinutes
         topicsJSON = encodeJSON(s.topics)
         interventionsJSON = encodeJSON(s.interventions)
         homework = s.homework; note = s.note
+        isFinished = s.isFinished; finishedAt = s.finishedAt
     }
 }
 
@@ -387,6 +397,7 @@ struct GOPEntryRecord: FetchableRecord, PersistableRecord {
     var maxFactorNoJustification: Double
     var maxFactor: Double
     var commonFactorsJSON: String
+    var billingStatus: String
 
     init(row: Row) {
         id = row["id"]; sessionID = row["sessionID"]
@@ -395,6 +406,7 @@ struct GOPEntryRecord: FetchableRecord, PersistableRecord {
         maxFactorNoJustification = row["maxFactorNoJustification"]
         maxFactor = row["maxFactor"]
         commonFactorsJSON = row["commonFactors"]
+        billingStatus = row["billingStatus"] ?? BillingStatus.unbilled.rawValue
     }
 
     func encode(to container: inout PersistenceContainer) {
@@ -404,6 +416,7 @@ struct GOPEntryRecord: FetchableRecord, PersistableRecord {
         container["maxFactorNoJustification"] = maxFactorNoJustification
         container["maxFactor"] = maxFactor
         container["commonFactors"] = commonFactorsJSON
+        container["billingStatus"] = billingStatus
     }
 
     init(_ g: GOPEntry, sessionID: UUID) {
@@ -413,6 +426,7 @@ struct GOPEntryRecord: FetchableRecord, PersistableRecord {
         maxFactorNoJustification = g.maxFactorNoJustification
         maxFactor = g.maxFactor
         commonFactorsJSON = encodeJSON(g.commonFactors)
+        billingStatus = g.billingStatus.rawValue
     }
 
     func toDomain() -> GOPEntry {
@@ -422,7 +436,8 @@ struct GOPEntryRecord: FetchableRecord, PersistableRecord {
             factor: factor, basePrice: basePrice,
             maxFactorNoJustification: maxFactorNoJustification,
             maxFactor: maxFactor,
-            commonFactors: decodeJSON(commonFactorsJSON)
+            commonFactors: decodeJSON(commonFactorsJSON),
+            billingStatus: BillingStatus(rawValue: billingStatus) ?? .unbilled
         )
     }
 }
@@ -435,6 +450,8 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
     var id: String
     var patientID: String
     var isoDate: String
+    var seriesID: String?
+    var sessionID: String
     var dateLabel: String
     var dayNumber: String
     var month: String
@@ -450,6 +467,8 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
     init(row: Row) {
         id = row["id"]; patientID = row["patientID"]
         isoDate = row["isoDate"] ?? ""   // nullable for rows inserted before migration v7
+        seriesID = row["seriesID"]
+        sessionID = row["sessionID"] ?? ""
         dateLabel = row["dateLabel"]; dayNumber = row["dayNumber"]; month = row["month"]
         time = row["time"]; durationMinutes = row["durationMinutes"]
         title = row["title"]; type = row["type"]
@@ -460,6 +479,7 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
     func encode(to container: inout PersistenceContainer) {
         container["id"] = id; container["patientID"] = patientID
         container["isoDate"] = isoDate
+        container["seriesID"] = seriesID; container["sessionID"] = sessionID
         container["dateLabel"] = dateLabel; container["dayNumber"] = dayNumber
         container["month"] = month; container["time"] = time
         container["durationMinutes"] = durationMinutes
@@ -471,6 +491,7 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
     init(_ a: AppointmentRecord, patientID: UUID) {
         id = a.id.uuidString; self.patientID = patientID.uuidString
         isoDate = a.isoDate
+        seriesID = a.seriesID?.uuidString; sessionID = a.sessionID.uuidString
         dateLabel = a.dateLabel; dayNumber = a.dayNumber; month = a.month
         time = a.time; durationMinutes = a.durationMinutes
         title = a.title; type = a.type
@@ -482,11 +503,13 @@ struct AppointmentRecord_DB: FetchableRecord, PersistableRecord {
         AppointmentRecord(
             id: UUID(uuidString: id) ?? UUID(),
             isoDate: isoDate,
+            seriesID: seriesID.flatMap(UUID.init(uuidString:)),
+            sessionID: UUID(uuidString: sessionID) ?? UUID(),
             dateLabel: dateLabel, dayNumber: dayNumber, month: month,
             time: time, durationMinutes: durationMinutes,
             title: title, type: type,
             sessionNumber: sessionNumber,
-            status: AppointmentStatus(rawValue: status) ?? .geplant,
+            status: AppointmentStatus(persistedValue: status),
             note: note, isPast: isPast
         )
     }
@@ -609,4 +632,3 @@ struct DocumentRecord: FetchableRecord, PersistableRecord {
         )
     }
 }
-
